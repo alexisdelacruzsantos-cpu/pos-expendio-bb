@@ -15,6 +15,9 @@ server/static/data/
 pos/backup/
 pos/exports/
 
+# Secreto JWT local
+pos/.jwt_secret
+
 # Datos de negocio
 CATALOGO.xlsx
 *.xlsx

@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
 from utils.movements import log_movement
+from utils.permissions import require_permission
 from datetime import datetime as _dt
 
 products_bp = Blueprint('products', __name__)
@@ -139,6 +140,7 @@ def get_inventory():
 
 @products_bp.route('/<int:product_id>/add-stock', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'edit')
 def add_product_stock(product_id):
     try:
         data = request.get_json()
@@ -169,6 +171,7 @@ def add_product_stock(product_id):
 
 @products_bp.route('/<int:product_id>/adjust-stock', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'edit')
 def adjust_product_stock(product_id):
     try:
         data = request.get_json()
@@ -227,6 +230,7 @@ def get_product(product_id):
 
 @products_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'create')
 def create_product():
     try:
         data = request.get_json()
@@ -290,6 +294,7 @@ def create_product():
 
 @products_bp.route('/<int:product_id>', methods=['PUT'])
 @jwt_required()
+@require_permission('products', 'edit')
 def update_product(product_id):
     try:
         data = request.get_json()
@@ -391,6 +396,7 @@ def update_product(product_id):
 
 @products_bp.route('/<int:product_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission('products', 'delete')
 def delete_product(product_id):
     try:
         db = Database(get_db_path())

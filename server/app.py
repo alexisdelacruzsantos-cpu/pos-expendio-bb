@@ -30,7 +30,28 @@ app = Flask(__name__,
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configuración JWT
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'POS-EXPENDIO-BB-SECRET-KEY-2026')
+def _resolve_jwt_secret():
+    """Secreto JWT: 1) variable de entorno, 2) archivo persistente fuera del repo, 3) generado y guardado."""
+    env_secret = os.environ.get('JWT_SECRET_KEY')
+    if env_secret:
+        return env_secret
+    secret_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pos', '.jwt_secret')
+    try:
+        if os.path.exists(secret_file):
+            with open(secret_file, 'r') as f:
+                content = f.read().strip()
+            if content:
+                return content
+        secret = os.urandom(48).hex()
+        os.makedirs(os.path.dirname(secret_file), exist_ok=True)
+        with open(secret_file, 'w') as f:
+            f.write(secret)
+        os.chmod(secret_file, 0o600)
+        return secret
+    except Exception:
+        return os.environ.get('JWT_SECRET_KEY') or os.urandom(48).hex()
+
+app.config['JWT_SECRET_KEY'] = _resolve_jwt_secret()
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600  # 1 hora
 jwt = JWTManager(app)
 

@@ -334,7 +334,44 @@ function checkAuth() {
     document.getElementById('userName').textContent = currentUser.full_name;
     document.getElementById('userRole').textContent = currentUser.role.toUpperCase();
 
+    applyRoleVisibility();
+
+    apiCall('/auth/validate').catch(() => {});
+
     loadInitialData();
+}
+
+// --- Visibilidad por rol ---
+function canAccessSection(section) {
+    if (currentUser?.role === 'admin') return true;
+    const p = permissions || {};
+    const view = m => !!p[m]?.can_view;
+    const edit = m => !!p[m]?.can_edit;
+    switch (section) {
+        case 'sales': return view('sales');
+        case 'products': return view('products');
+        case 'inventory': return edit('products');
+        case 'adjustments': return edit('products');
+        case 'lots': return edit('products');
+        case 'promotions': return edit('products');
+        case 'import': return edit('products');
+        case 'inventory-history': return view('products');
+        case 'existencias': return view('products');
+        case 'orders': return view('products');
+        case 'reports': return view('reports');
+        case 'cash': return view('cash_register');
+        case 'settings': return view('settings');
+        default: return true;
+    }
+}
+
+function applyRoleVisibility() {
+    document.querySelectorAll('[data-section]').forEach(el => {
+        const section = el.getAttribute('data-section');
+        const allowed = canAccessSection(section);
+        el.style.display = allowed ? '' : 'none';
+        el.style.visibility = allowed ? '' : 'hidden';
+    });
 }
 
 // Estado del turno activo (caché en memoria)
@@ -1310,6 +1347,13 @@ function restoreUbuntuOrder() {
 /* ===== End Ubuntu Menu ===== */
 
 async function showSection(section) {
+    if (!canAccessSection(section)) {
+        if (section !== 'sales' && canAccessSection('sales')) {
+            showToast('No tienes permisos para esta sección', 'error');
+            return showSection('sales');
+        }
+        return;
+    }
     document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`${section}Section`).classList.add('active');
 

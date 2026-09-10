@@ -5,11 +5,13 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
+from utils.permissions import require_permission
 
 settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/', methods=['GET'])
 @jwt_required()
+@require_permission('settings', 'view')
 def get_settings():
     try:
         db = Database(get_db_path())
@@ -43,6 +45,7 @@ def get_settings():
 
 @settings_bp.route('/categories', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'create')
 def create_category():
     try:
         data = request.get_json()
@@ -74,6 +77,7 @@ def create_category():
 
 @settings_bp.route('/categories/<int:cat_id>', methods=['PUT'])
 @jwt_required()
+@require_permission('products', 'edit')
 def update_category(cat_id):
     try:
         data = request.get_json()
@@ -123,6 +127,7 @@ def update_category(cat_id):
 
 @settings_bp.route('/categories/<int:cat_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission('products', 'delete')
 def delete_category(cat_id):
     try:
         db = Database(get_db_path())
@@ -144,6 +149,7 @@ def delete_category(cat_id):
 
 @settings_bp.route('/users', methods=['POST'])
 @jwt_required()
+@require_permission('users', 'create')
 def create_user():
     try:
         data = request.get_json()
@@ -184,6 +190,7 @@ def create_user():
 
 @settings_bp.route('/users/<int:user_id>', methods=['PUT'])
 @jwt_required()
+@require_permission('users', 'edit')
 def update_user(user_id):
     try:
         data = request.get_json()
@@ -235,6 +242,7 @@ def update_user(user_id):
 
 @settings_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission('users', 'delete')
 def delete_user(user_id):
     try:
         db = Database(get_db_path())
@@ -256,6 +264,7 @@ def delete_user(user_id):
 
 @settings_bp.route('/terminals', methods=['POST'])
 @jwt_required()
+@require_permission('settings', 'create')
 def create_terminal():
     try:
         data = request.get_json()

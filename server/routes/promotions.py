@@ -5,6 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
+from utils.permissions import require_permission
 
 promotions_bp = Blueprint('promotions', __name__)
 
@@ -41,6 +42,7 @@ def get_promotions():
 
 @promotions_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'create')
 def create_promotion():
     try:
         data = request.get_json()
@@ -94,6 +96,7 @@ def create_promotion():
 
 @promotions_bp.route('/<int:promo_id>', methods=['PUT'])
 @jwt_required()
+@require_permission('products', 'edit')
 def update_promotion(promo_id):
     try:
         data = request.get_json()
@@ -147,6 +150,7 @@ def update_promotion(promo_id):
 
 @promotions_bp.route('/<int:promo_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission('products', 'delete')
 def delete_promotion(promo_id):
     try:
         db = Database(get_db_path())

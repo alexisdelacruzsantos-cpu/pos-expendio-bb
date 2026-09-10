@@ -14,6 +14,7 @@ from datetime import datetime as _dt
 from config import get_db_path
 from utils.database import Database
 from utils.movements import log_movement
+from utils.permissions import require_permission
 
 lots_bp = Blueprint('lots', __name__)
 
@@ -144,6 +145,7 @@ def get_lot(lot_id):
 
 @lots_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'create')
 def create_lot():
     try:
         data = request.get_json()
@@ -197,6 +199,7 @@ def create_lot():
 
 @lots_bp.route('/<int:lot_id>', methods=['PUT'])
 @jwt_required()
+@require_permission('products', 'edit')
 def update_lot(lot_id):
     try:
         data = request.get_json()
@@ -257,6 +260,7 @@ def update_lot(lot_id):
 
 @lots_bp.route('/<int:lot_id>', methods=['DELETE'])
 @jwt_required()
+@require_permission('products', 'delete')
 def delete_lot(lot_id):
     try:
         db = Database(get_db_path())
@@ -341,6 +345,7 @@ def get_best_lot(product_id):
 
 @lots_bp.route('/add-stock', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'edit')
 def add_stock():
     try:
         data = request.get_json()
@@ -441,6 +446,7 @@ def add_stock():
 
 @lots_bp.route('/adjust-stock', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'edit')
 def adjust_stock():
     try:
         data = request.get_json()

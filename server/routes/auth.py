@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -66,28 +66,22 @@ def login():
         return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/validate', methods=['POST'])
+@jwt_required()
 def validate_token():
     try:
-        auth_header = request.headers.get('Authorization', '')
-        token = auth_header.replace('Bearer ', '')
-        
-        from utils.security import Security
-        payload = Security.verify_token(token)
-        
-        if not payload:
-            return jsonify({'error': 'Invalid or expired token'}), 401
-        
-        return jsonify({'valid': True, 'user_id': payload['user_id']})
-    
+        claims = get_jwt()
+        return jsonify({
+            'valid': True,
+            'user_id': get_jwt_identity(),
+            'role': claims.get('role'),
+            'username': claims.get('username'),
+            'full_name': claims.get('full_name')
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
 def logout():
-    try:
-        from utils.security import Security
-        Security.clear_token_cache()
-        return jsonify({'message': 'Logged out successfully'})
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # JWT es stateless: el cliente descarta el token. La validez real la decide la expiración.
+    return jsonify({'message': 'Logged out successfully'}), 200

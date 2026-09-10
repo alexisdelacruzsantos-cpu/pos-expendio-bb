@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
 from utils.movements import current_user_id
+from utils.permissions import require_permission
 
 maintenance_bp = Blueprint('maintenance', __name__)
 
@@ -42,6 +43,7 @@ def _make_backup():
 
 @maintenance_bp.route('/purge-sales', methods=['POST'])
 @jwt_required()
+@require_permission('settings', 'delete')
 def purge_sales():
     """Borra tickets vendidos, devoluciones, historial de movimientos y registros de auditoría."""
     try:
@@ -76,6 +78,7 @@ def purge_sales():
 
 @maintenance_bp.route('/reset-stock', methods=['POST'])
 @jwt_required()
+@require_permission('settings', 'delete')
 def reset_stock():
     """Pone en 0 el stock general de todos los productos y las cantidades de lotes pendientes."""
     try:
@@ -122,6 +125,7 @@ def reset_stock():
 
 @maintenance_bp.route('/purge-catalog', methods=['POST'])
 @jwt_required()
+@require_permission('settings', 'delete')
 def purge_catalog():
     """Vacía productos, categorías, lotes y dependencias para reimportar el catálogo desde cero."""
     try:
