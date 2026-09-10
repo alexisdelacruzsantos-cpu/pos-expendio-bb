@@ -4048,20 +4048,28 @@ function getMovementMeta(t) {
 }
 
 function computeMovementTotals(movements) {
-    const totals = {};
+    // Camina del más reciente al más antiguo anclando el "después" del último
+    // movimiento al stock ACTUAL real del producto (products.stock vía allProducts),
+    // para que las columnas "Antes/Después" reflejen la realidad, no una suma desde 0.
     const info = {};
-    const sortedAsc = movements.slice().reverse();
-    for (const m of sortedAsc) {
+    const running = {}; // stock "después" del movimiento actual (real al anclar)
+    const ordered = movements.slice().sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+    for (const m of ordered) {
         const pid = m.product_id;
-        const prev = totals[pid] === undefined ? 0 : totals[pid];
         const meta = getMovementMeta(m.movement_type);
         const qty = Number(m.quantity || 0);
-        let after = prev;
-        if (meta.stock) {
-            after = prev + qty;
-            totals[pid] = after;
+        if (running[pid] === undefined) {
+            const cur = getProductBaseStock(pid);
+            running[pid] = isFinite(cur) ? cur : 0;
         }
-        info[m.id] = { before: prev, after: after, stock: meta.stock };
+        if (!meta.stock) {
+            info[m.id] = { before: null, after: null, stock: false };
+            continue;
+        }
+        const after = running[pid];
+        const before = after - qty下部;
+        running[pid] = before; // stock antes de este movimiento = stock "después" del anterior
+        info[m.id] = { before: before, after: after, stock: true };
     }
     return info;
 }
