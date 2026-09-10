@@ -52,7 +52,7 @@ def _resolve_jwt_secret():
         return os.environ.get('JWT_SECRET_KEY') or os.urandom(48).hex()
 
 app.config['JWT_SECRET_KEY'] = _resolve_jwt_secret()
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600  # 1 hora
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 43200  # 12 horas (turno completo)
 jwt = JWTManager(app)
 
 # Configuración de la base de datos
