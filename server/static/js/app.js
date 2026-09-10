@@ -4067,8 +4067,8 @@ function computeMovementTotals(movements) {
             continue;
         }
         const after = running[pid];
-        const before = after - qty下部;
-        running[pid] = before; // stock antes de este movimiento = stock "después" del anterior
+        const before = after - qty;
+        running[pid] = before; // stock antes de este movimiento = stock "después" del anterior(nocturno)
         info[m.id] = { before: before, after: after, stock: true };
     }
     return info;
