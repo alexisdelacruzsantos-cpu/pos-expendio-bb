@@ -1,31 +1,65 @@
 import sqlite3
 import os
+import threading
 from datetime import datetime
 from contextlib import contextmanager
 
 class Database:
+    # Candado global de escritura: serializa las transacciones de escritura
+    # dentro de este proceso para evitar carreras (doble cobro, doble descuento).
+    write_lock = threading.Lock()
+
     def __init__(self, db_path):
         self.db_path = db_path
         self.conn = None
+        self._in_transaction = False
     
     def get_connection(self):
         if self.conn is None:
-            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, isolation_level=None)
             self.conn.row_factory = sqlite3.Row
             self.conn.execute("PRAGMA foreign_keys = ON")
             self.conn.execute("PRAGMA journal_mode = WAL")
-            self.conn.execute("PRAGMA synchronous = NORMAL")
+            # FULL: garantiza que un corte de energía no pierda un cobro ya confirmado
+            self.conn.execute("PRAGMA synchronous = FULL")
+            # Evita errores "database is locked" en escrituras simultáneas
+            self.conn.execute("PRAGMA busy_timeout = 10000")
         return self.conn
     
     @contextmanager
     def transaction(self):
+        """Transacción atómica real: todo o nada. Los writes de `execute` dentro
+        de este bloque no se confirman hasta salir, y se revierten si algo falla."""
         conn = self.get_connection()
+        if self._in_transaction:
+            raise RuntimeError("Ya hay una transacción activa en esta conexión")
+        conn.execute("BEGIN IMMEDIATE")
+        self._in_transaction = True
         try:
             yield conn
             conn.commit()
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            raise e
+            raise
+        finally:
+            self._in_transaction = False
+    
+    @contextmanager
+    def write(self):
+        """Serie de escritura segura: candado + transacción atómica."""
+        with Database.write_lock:
+            with self.transaction():
+                yield
+
+    def checkpoint(self):
+        """Compacta el WAL en la base principal (recomendado en apagados limpios)."""
+        try:
+            conn = self.get_connection()
+            result = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"wal_checkpoint error: {e}")
+            return None
     
     def execute(self, query, params=None):
         conn = self.get_connection()
@@ -34,7 +68,8 @@ class Database:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-        conn.commit()
+        if not self._in_transaction:
+            conn.commit()
         return cursor
     
     def fetch_all(self, query, params=None):

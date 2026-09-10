@@ -5,6 +5,9 @@ let currentUser = null;
 let permissions = {};
 let cart = [];
 let saleAttemptCount = 0;
+let isProcessingSale = false;
+let cartHydrated = false;
+const CART_STORAGE_KEY = 'pos_cart_v1';
 let paymentMethod = 'cash';
 let products = [];
 let promotions = [];
@@ -101,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     setupNavigation();
     setCurrentDate();
+    restoreCartFromStorage();
     setupCartEventDelegation();
     setupGlobalKeys();
     setupFullscreenOnFirstInteraction();
@@ -5495,10 +5499,56 @@ function applyPromotionsToCart() {
     return { totalDiscount, appliedPromos };
 }
 
+function saveCart() {
+    if (!cartHydrated) return;
+    try {
+        if (cart.length === 0) {
+            localStorage.removeItem(CART_STORAGE_KEY);
+        } else {
+            localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+        }
+    } catch (e) {
+        console.warn('No se pudo guardar el carrito:', e);
+    }
+}
+
+function restoreCartFromStorage() {
+    cartHydrated = true;
+    let saved = null;
+    try {
+        const raw = localStorage.getItem(CART_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw);
+    } catch (e) {
+        saved = null;
+    }
+    if (!Array.isArray(saved) || saved.length === 0) return;
+
+    // Si el catálogo aún no se ha cargado, se acepta el carrito tal cual;
+    // en caso contrario solo se conservan artículos que existan.
+    let valid = saved;
+    if (Array.isArray(allProducts) && allProducts.length > 0) {
+        valid = saved.filter(item => item && item.id && allProducts.find(p => p.id === item.id));
+        if (valid.length === 0) {
+            localStorage.removeItem(CART_STORAGE_KEY);
+            return;
+        }
+    }
+    valid.forEach(item => {
+        delete item.discount;
+        delete item.promo_name;
+    });
+    cart = valid;
+    saleAttemptCount = 0;
+    cartSelectedIndex = Math.min(cartSelectedIndex, cart.length - 1);
+    renderCart();
+    showToast(`🛒 Carrito recuperado: ${cart.length} producto(s) pendientes`, 'info');
+}
+
 function renderCart() {
     const tbody = document.getElementById('posCartBody');
     if (!tbody) return;
     const { totalDiscount, appliedPromos } = applyPromotionsToCart();
+    saveCart();
 
     const countEl = document.getElementById('posCartCount');
 
@@ -6113,6 +6163,10 @@ function calculatePaymentChange() {
 }
 
 async function confirmPayment() {
+    if (isProcessingSale) {
+        showToast('El cobro ya está en proceso…', 'info');
+        return;
+    }
     if (!activeShift) {
         closePaymentModal();
         forceShiftLogin('No puedes vender sin un turno de caja abierto. Inicia sesión de nuevo para abrir uno.');
@@ -6139,6 +6193,11 @@ async function confirmPayment() {
     closePaymentModal();
     const card = document.getElementById('posTotalCard');
     if (card) { card.classList.add('is-empty'); card.setAttribute('aria-disabled', 'true'); }
+
+    // Bloqueo de doble envío: desactiva el botón mientras el cobro está en vuelo
+    isProcessingSale = true;
+    const procBtn = document.getElementById('confirmPayBtn');
+    if (procBtn) { procBtn.disabled = true; procBtn.textContent = 'PROCESANDO…'; }
 
     try {
         const saleData = {
@@ -6199,6 +6258,7 @@ async function confirmPayment() {
         }
         showToast(msg, 'error');
     } finally {
+        isProcessingSale = false;
         const cobrarBtn = document.getElementById('confirmPayBtn');
         if (cobrarBtn) { cobrarBtn.disabled = false; cobrarBtn.textContent = '✓ CONFIRMAR (Enter)'; }
     }

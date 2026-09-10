@@ -93,150 +93,153 @@ def apply_adjustment():
             return jsonify({'error': 'El motivo del ajuste es obligatorio'}), 400
 
         db = Database(get_db_path())
-        product = db.fetch_one('''
-            SELECT p.*, c.name as category_name, c.color as category_color
-            FROM products p
-            LEFT JOIN categories c ON p.category_id = c.id
-            WHERE p.id = ? AND p.active = 1
-        ''', (product_id,))
-        if not product:
-            return jsonify({'error': 'Producto no encontrado'}), 404
 
-        lot = None
-        if lot_id:
-            lot = db.fetch_one('SELECT * FROM lots WHERE id = ? AND product_id = ?', (lot_id, product_id))
-            if not lot:
-                return jsonify({'error': 'El lote seleccionado no pertenece al producto'}), 400
+        # Transacción atómica: el ajuste (stock/lotes/precios/movimientos) es todo o nada
+        with db.write():
+            product = db.fetch_one('''
+                SELECT p.*, c.name as category_name, c.color as category_color
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.id = ? AND p.active = 1
+            ''', (product_id,))
+            if not product:
+                return jsonify({'error': 'Producto no encontrado'}), 404
 
-        # Determinar cantidad actual y nueva cantidad
-        if lot:
-            current_quantity = float(lot['current_quantity'] or 0)
-        else:
-            current_quantity = float(product['stock'] or 0)
+            lot = None
+            if lot_id:
+                lot = db.fetch_one('SELECT * FROM lots WHERE id = ? AND product_id = ?', (lot_id, product_id))
+                if not lot:
+                    return jsonify({'error': 'El lote seleccionado no pertenece al producto'}), 400
 
-        new_quantity = data.get('new_quantity')
-        adjustment = data.get('adjustment')
-        if new_quantity is None and adjustment is None:
-            return jsonify({'error': 'Debe proporcionar nueva cantidad o ajuste'}), 400
+            # Determinar cantidad actual y nueva cantidad
+            if lot:
+                current_quantity = float(lot['current_quantity'] or 0)
+            else:
+                current_quantity = float(product['stock'] or 0)
 
-        if new_quantity is None:
+            new_quantity = data.get('new_quantity')
+            adjustment = data.get('adjustment')
+            if new_quantity is None and adjustment is None:
+                return jsonify({'error': 'Debe proporcionar nueva cantidad o ajuste'}), 400
+
+            if new_quantity is None:
+                try:
+                    adjustment = float(adjustment)
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'El ajuste debe ser un número válido'}), 400
+                new_quantity = current_quantity + adjustment
+
             try:
-                adjustment = float(adjustment)
+                new_quantity = float(new_quantity)
             except (TypeError, ValueError):
-                return jsonify({'error': 'El ajuste debe ser un número válido'}), 400
-            new_quantity = current_quantity + adjustment
+                return jsonify({'error': 'La nueva cantidad debe ser un número válido'}), 400
 
-        try:
-            new_quantity = float(new_quantity)
-        except (TypeError, ValueError):
-            return jsonify({'error': 'La nueva cantidad debe ser un número válido'}), 400
+            if new_quantity < 0:
+                return jsonify({
+                    'error': 'El stock no puede ser negativo. El mínimo permitido es 0',
+                    'minimum': 0
+                }), 400
 
-        if new_quantity < 0:
+            # Validaciones adicionales
+            if lot:
+                # Al subir un lote se toma del stock general; al bajar regresa al stock general
+                diff = new_quantity - current_quantity
+                if diff > 0:
+                    base_row = db.fetch_one('SELECT stock FROM products WHERE id = ?', (product_id,))
+                    avail = float(base_row['stock'] or 0) if base_row else 0
+                    if diff > avail:
+                        return jsonify({
+                            'error': f'Solo hay {avail:g} pieza(s) en el stock general para subir el lote',
+                            'available': avail
+                        }), 400
+                    db.execute('UPDATE products SET stock = stock - ? WHERE id = ?', (diff, product_id))
+                elif diff < 0:
+                    db.execute('UPDATE products SET stock = stock + ? WHERE id = ?', (abs(diff), product_id))
+                db.execute('UPDATE lots SET current_quantity = ? WHERE id = ?', (new_quantity, lot_id))
+                target_label = f'lote {lot["batch_number"] or "#" + str(lot_id)}'
+            else:
+                diff = new_quantity - current_quantity
+                db.execute('UPDATE products SET stock = ? WHERE id = ?', (new_quantity, product_id))
+                target_label = 'stock general'
+
+            # Ajuste de precio de venta del producto
+            price_changed = False
+            if data.get('new_price') is not None and str(data.get('new_price')).strip() != '':
+                try:
+                    new_price = float(data['new_price'])
+                    if new_price < 0:
+                        return jsonify({'error': 'El precio de venta no puede ser negativo'}), 400
+                    old_price = float(product['price'] or 0)
+                    if new_price != old_price:
+                        db.execute('UPDATE products SET price = ? WHERE id = ?', (new_price, product_id))
+                        log_movement(db, product_id=product_id, movement_type='price_changed',
+                                     notes=f'Precio: ${old_price:.2f} → ${new_price:.2f} (Ajuste: {reason})')
+                        price_changed = True
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'El precio de venta debe ser un número válido'}), 400
+
+            # Ajuste de costo del producto
+            cost_changed = False
+            if data.get('new_cost') is not None and str(data.get('new_cost')).strip() != '':
+                try:
+                    new_cost = float(data['new_cost'])
+                    if new_cost < 0:
+                        return jsonify({'error': 'El costo no puede ser negativo'}), 400
+                    old_cost = float(product['cost'] or 0)
+                    if new_cost != old_cost:
+                        db.execute('UPDATE products SET cost = ? WHERE id = ?', (new_cost, product_id))
+                        cost_changed = True
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'El costo debe ser un número válido'}), 400
+
+            # Ajuste de precio del lote (si aplica)
+            lot_price_changed = False
+            if lot and data.get('new_lot_price') is not None and str(data.get('new_lot_price')).strip() != '':
+                try:
+                    new_lot_price = float(data['new_lot_price'])
+                    if new_lot_price < 0:
+                        return jsonify({'error': 'El precio del lote no puede ser negativo'}), 400
+                    old_lot_price = float(lot['sale_price'] or 0)
+                    if new_lot_price != old_lot_price:
+                        db.execute('UPDATE lots SET sale_price = ? WHERE id = ?', (new_lot_price, lot_id))
+                        log_movement(db, product_id=product_id, lot_id=lot_id, movement_type='lot_updated',
+                                     notes=f'Precio de lote: ${old_lot_price:.2f} → ${new_lot_price:.2f} (Ajuste: {reason})')
+                        lot_price_changed = True
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'El precio del lote debe ser un número válido'}), 400
+
+            # Registrar movimiento de inventario
+            movement_type = 'adjustment'
+            log_movement(db, product_id=product_id, lot_id=lot_id if lot else None,
+                         movement_type=movement_type, quantity=diff,
+                         notes=f'Ajuste: {reason}. Objetivo: {target_label}')
+
+            # Registro en change_log
+            db.execute('''
+                INSERT INTO change_log (table_name, record_id, action, data, source, device_id, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'inventory_adjustment',
+                product_id,
+                'adjustment',
+                f'{{"product_id":{product_id},"lot_id":{lot_id if lot else "null"},"previous":{current_quantity},"new":{new_quantity},"reason":"{reason}"}}',
+                'pos',
+                'server',
+                _current_user_id()
+            ))
+
             return jsonify({
-                'error': 'El stock no puede ser negativo. El mínimo permitido es 0',
-                'minimum': 0
-            }), 400
-
-        # Validaciones adicionales
-        if lot:
-            # Al subir un lote se toma del stock general; al bajar regresa al stock general
-            diff = new_quantity - current_quantity
-            if diff > 0:
-                base_row = db.fetch_one('SELECT stock FROM products WHERE id = ?', (product_id,))
-                avail = float(base_row['stock'] or 0) if base_row else 0
-                if diff > avail:
-                    return jsonify({
-                        'error': f'Solo hay {avail:g} pieza(s) en el stock general para subir el lote',
-                        'available': avail
-                    }), 400
-                db.execute('UPDATE products SET stock = stock - ? WHERE id = ?', (diff, product_id))
-            elif diff < 0:
-                db.execute('UPDATE products SET stock = stock + ? WHERE id = ?', (abs(diff), product_id))
-            db.execute('UPDATE lots SET current_quantity = ? WHERE id = ?', (new_quantity, lot_id))
-            target_label = f'lote {lot["batch_number"] or "#" + str(lot_id)}'
-        else:
-            diff = new_quantity - current_quantity
-            db.execute('UPDATE products SET stock = ? WHERE id = ?', (new_quantity, product_id))
-            target_label = 'stock general'
-
-        # Ajuste de precio de venta del producto
-        price_changed = False
-        if data.get('new_price') is not None and str(data.get('new_price')).strip() != '':
-            try:
-                new_price = float(data['new_price'])
-                if new_price < 0:
-                    return jsonify({'error': 'El precio de venta no puede ser negativo'}), 400
-                old_price = float(product['price'] or 0)
-                if new_price != old_price:
-                    db.execute('UPDATE products SET price = ? WHERE id = ?', (new_price, product_id))
-                    log_movement(db, product_id=product_id, movement_type='price_changed',
-                                 notes=f'Precio: ${old_price:.2f} → ${new_price:.2f} (Ajuste: {reason})')
-                    price_changed = True
-            except (TypeError, ValueError):
-                return jsonify({'error': 'El precio de venta debe ser un número válido'}), 400
-
-        # Ajuste de costo del producto
-        cost_changed = False
-        if data.get('new_cost') is not None and str(data.get('new_cost')).strip() != '':
-            try:
-                new_cost = float(data['new_cost'])
-                if new_cost < 0:
-                    return jsonify({'error': 'El costo no puede ser negativo'}), 400
-                old_cost = float(product['cost'] or 0)
-                if new_cost != old_cost:
-                    db.execute('UPDATE products SET cost = ? WHERE id = ?', (new_cost, product_id))
-                    cost_changed = True
-            except (TypeError, ValueError):
-                return jsonify({'error': 'El costo debe ser un número válido'}), 400
-
-        # Ajuste de precio del lote (si aplica)
-        lot_price_changed = False
-        if lot and data.get('new_lot_price') is not None and str(data.get('new_lot_price')).strip() != '':
-            try:
-                new_lot_price = float(data['new_lot_price'])
-                if new_lot_price < 0:
-                    return jsonify({'error': 'El precio del lote no puede ser negativo'}), 400
-                old_lot_price = float(lot['sale_price'] or 0)
-                if new_lot_price != old_lot_price:
-                    db.execute('UPDATE lots SET sale_price = ? WHERE id = ?', (new_lot_price, lot_id))
-                    log_movement(db, product_id=product_id, lot_id=lot_id, movement_type='lot_updated',
-                                 notes=f'Precio de lote: ${old_lot_price:.2f} → ${new_lot_price:.2f} (Ajuste: {reason})')
-                    lot_price_changed = True
-            except (TypeError, ValueError):
-                return jsonify({'error': 'El precio del lote debe ser un número válido'}), 400
-
-        # Registrar movimiento de inventario
-        movement_type = 'adjustment'
-        log_movement(db, product_id=product_id, lot_id=lot_id if lot else None,
-                     movement_type=movement_type, quantity=diff,
-                     notes=f'Ajuste: {reason}. Objetivo: {target_label}')
-
-        # Registro en change_log
-        db.execute('''
-            INSERT INTO change_log (table_name, record_id, action, data, source, device_id, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            'inventory_adjustment',
-            product_id,
-            'adjustment',
-            f'{{"product_id":{product_id},"lot_id":{lot_id if lot else "null"},"previous":{current_quantity},"new":{new_quantity},"reason":"{reason}"}}',
-            'pos',
-            'server',
-            _current_user_id()
-        ))
-
-        return jsonify({
-            'message': 'Ajuste realizado exitosamente',
-            'product_id': product_id,
-            'product_name': product['name'],
-            'lot_id': lot_id if lot else None,
-            'target': target_label,
-            'previous': current_quantity,
-            'new': new_quantity,
-            'diff': diff,
-            'price_changed': price_changed,
-            'cost_changed': cost_changed,
-            'lot_price_changed': lot_price_changed
-        }), 200
+                'message': 'Ajuste realizado exitosamente',
+                'product_id': product_id,
+                'product_name': product['name'],
+                'lot_id': lot_id if lot else None,
+                'target': target_label,
+                'previous': current_quantity,
+                'new': new_quantity,
+                'diff': diff,
+                'price_changed': price_changed,
+                'cost_changed': cost_changed,
+                'lot_price_changed': lot_price_changed
+            }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

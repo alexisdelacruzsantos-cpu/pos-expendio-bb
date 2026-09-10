@@ -6,36 +6,56 @@ Genera respaldos de la base de datos
 
 import sqlite3
 import os
+import time
 import shutil
 from datetime import datetime
 
-def create_backup(db_path, backup_dir):
+def create_backup(db_path, backup_dir, prefix='pos_backup_', keep=30):
+    """Respaldo consistente y WAL-safe usando la API de backup de SQLite.
+
+    Copia el estado de la base aunque haya un WAL pendiente (los lectores
+    pueden convivir con escritores), por lo que el archivo resultante es
+    siempre una foto válida y abierta de la base.
+    """
     if not os.path.exists(db_path):
         print(f"Error: Base de datos no encontrada en {db_path}")
-        return False
-    
+        return None
+
     os.makedirs(backup_dir, exist_ok=True)
-    
+
+    # Sufijo con contador para evitar colisiones dentro del mismo segundo
+    counter = int(time.time() * 1000) % 10000
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_filename = f'pos_backup_{timestamp}.db'
+    backup_filename = f'{prefix}{timestamp}_{counter:04d}.db'
     backup_path = os.path.join(backup_dir, backup_filename)
-    
+
     try:
-        shutil.copy2(db_path, backup_path)
+        src = sqlite3.connect(db_path)
+        dst = sqlite3.connect(backup_path)
+        try:
+            with dst:
+                src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
         print(f"✓ Respaldo creado exitosamente: {backup_path}")
-        
-        # Mantener solo los últimos 30 respaldos
-        backups = sorted([f for f in os.listdir(backup_dir) if f.startswith('pos_backup_')])
-        while len(backups) > 30:
+
+        # Mantener solo los últimos `keep` respaldos (rotación)
+        backups = sorted([f for f in os.listdir(backup_dir)
+                          if f.startswith(prefix) and f.endswith('.db')])
+        while len(backups) > keep:
             oldest = backups.pop(0)
-            os.remove(os.path.join(backup_dir, oldest))
-            print(f"  Eliminando respaldo antiguo: {oldest}")
-        
-        return True
-    
+            try:
+                os.remove(os.path.join(backup_dir, oldest))
+                print(f"  Eliminando respaldo antiguo: {oldest}")
+            except OSError:
+                pass
+
+        return backup_path
+
     except Exception as e:
         print(f"Error al crear respaldo: {e}")
-        return False
+        return None
 
 def restore_backup(backup_path, db_path):
     if not os.path.exists(backup_path):
@@ -49,7 +69,15 @@ def restore_backup(backup_path, db_path):
             shutil.copy2(db_path, current_backup)
             print(f"  Respaldo del estado actual: {current_backup}")
         
-        shutil.copy2(backup_path, db_path)
+        # Restaurar desde un archivo SQLite válido (foto consistente)
+        src = sqlite3.connect(backup_path)
+        dst = sqlite3.connect(db_path)
+        try:
+            with dst:
+                src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
         print(f"✓ Base de datos restaurada desde: {backup_path}")
         return True
     
@@ -78,7 +106,7 @@ if __name__ == '__main__':
     import sys
     
     # Configuración
-    base_dir = os.path.dirname(os.path.dirname(__file__))
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     db_path = os.path.join(base_dir, 'server', 'static', 'data', 'pos.db')
     backup_dir = os.path.join(base_dir, 'pos', 'backup')
     

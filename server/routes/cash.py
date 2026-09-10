@@ -163,27 +163,29 @@ def open_cash():
 
         db = Database(get_db_path())
 
-        existing = db.fetch_one('SELECT id FROM cash_registers WHERE status = \'open\'')
-        if existing:
-            return jsonify({
-                'error': 'Ya hay un turno de caja abierto en el sistema',
-                'has_active': True
-            }), 409
+        # Transacción atómica: apertura de turno (caja + registro de acción)
+        with db.write():
+            existing = db.fetch_one('SELECT id FROM cash_registers WHERE status = \'open\'')
+            if existing:
+                return jsonify({
+                    'error': 'Ya hay un turno de caja abierto en el sistema',
+                    'has_active': True
+                }), 409
 
-        user = db.fetch_one('SELECT id, full_name, username FROM users WHERE id = ?', (current_user_id,))
-        if not user:
-            return jsonify({'error': 'Usuario no encontrado'}), 404
+            user = db.fetch_one('SELECT id, full_name, username FROM users WHERE id = ?', (current_user_id,))
+            if not user:
+                return jsonify({'error': 'Usuario no encontrado'}), 404
 
-        if not cashier_name:
-            cashier_name = user['full_name'] or user['username'] or 'Cajero'
+            if not cashier_name:
+                cashier_name = user['full_name'] or user['username'] or 'Cajero'
 
-        cursor = db.execute('''
-            INSERT INTO cash_registers (opening_amount, cashier_name, status, user_id, terminal, notes, open_date)
-            VALUES (?, ?, 'open', ?, ?, ?, ?)
-        ''', (opening_amount, cashier_name, current_user_id, terminal, notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            cursor = db.execute('''
+                INSERT INTO cash_registers (opening_amount, cashier_name, status, user_id, terminal, notes, open_date)
+                VALUES (?, ?, 'open', ?, ?, ?, ?)
+            ''', (opening_amount, cashier_name, current_user_id, terminal, notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
 
-        register_id = cursor.lastrowid
-        _record_action(db, register_id, current_user_id, current_user_id, 'open', notes)
+            register_id = cursor.lastrowid
+            _record_action(db, register_id, current_user_id, current_user_id, 'open', notes)
 
         return jsonify({
             'message': 'Turno abierto exitosamente',
@@ -209,69 +211,71 @@ def close_cash(cash_id):
 
         db = Database(get_db_path())
 
-        register = db.fetch_one('SELECT * FROM cash_registers WHERE id = ? AND status = \'open\'', (cash_id,))
-        if not register:
-            return jsonify({'error': 'Turno no encontrado o ya está cerrado'}), 404
+        # Transacción atómica: cierre de turno (cierre + marcar ventas + acción)
+        with db.write():
+            register = db.fetch_one('SELECT * FROM cash_registers WHERE id = ? AND status = \'open\'', (cash_id,))
+            if not register:
+                return jsonify({'error': 'Turno no encontrado o ya está cerrado'}), 404
 
-        owner_user_id = register['user_id']
-        is_owner = (current_user_id == owner_user_id)
+            owner_user_id = register['user_id']
+            is_owner = (current_user_id == owner_user_id)
 
-        if not is_owner:
-            if not owner_password:
-                return jsonify({
-                    'error': 'Para cerrar el turno de otro usuario debes confirmar con la contraseña del dueño',
-                    'requires_password': True,
-                    'owner_user_id': owner_user_id
-                }), 403
-            owner_user = db.fetch_one('SELECT password_hash FROM users WHERE id = ?', (owner_user_id,))
-            if not owner_user or not Security.verify_password(owner_password, owner_user['password_hash']):
-                return jsonify({'error': 'Contraseña del dueño incorrecta'}), 403
+            if not is_owner:
+                if not owner_password:
+                    return jsonify({
+                        'error': 'Para cerrar el turno de otro usuario debes confirmar con la contraseña del dueño',
+                        'requires_password': True,
+                        'owner_user_id': owner_user_id
+                    }), 403
+                owner_user = db.fetch_one('SELECT password_hash FROM users WHERE id = ?', (owner_user_id,))
+                if not owner_user or not Security.verify_password(owner_password, owner_user['password_hash']):
+                    return jsonify({'error': 'Contraseña del dueño incorrecta'}), 403
 
-        stats = _stats_for_register(db, register)
-        expected = float(register['opening_amount'] or 0) + stats['cash_total']
+            stats = _stats_for_register(db, register)
+            expected = float(register['opening_amount'] or 0) + stats['cash_total']
 
-        if counted_cash is not None and counted_cash != '':
-            counted = float(counted_cash)
-            difference = counted - expected
-        else:
-            counted = expected
-            difference = 0
+            if counted_cash is not None and counted_cash != '':
+                counted = float(counted_cash)
+                difference = counted - expected
+            else:
+                counted = expected
+                difference = 0
 
-        db.execute('''
-            UPDATE cash_registers
-            SET close_date = ?,
-                total_sales = ?,
-                total_cash = ?,
-                total_card = ?,
-                expected_amount = ?,
-                counted_amount = ?,
-                difference = ?,
-                notes = ?,
-                status = 'closed'
-            WHERE id = ?
-        ''', (
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            stats['sales_total'],
-            stats['cash_total'],
-            stats['card_total'],
-            round(expected, 2),
-            round(counted, 2),
-            round(difference, 2),
-            notes,
-            cash_id
-        ))
+            db.execute('''
+                UPDATE cash_registers
+                SET close_date = ?,
+                    total_sales = ?,
+                    total_cash = ?,
+                    total_card = ?,
+                    expected_amount = ?,
+                    counted_amount = ?,
+                    difference = ?,
+                    notes = ?,
+                    status = 'closed'
+                WHERE id = ?
+            ''', (
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                stats['sales_total'],
+                stats['cash_total'],
+                stats['card_total'],
+                round(expected, 2),
+                round(counted, 2),
+                round(difference, 2),
+                notes,
+                cash_id
+            ))
 
-        db.execute('''
-            UPDATE sales
-            SET closed = 1
-            WHERE cash_register_id = ? AND closed = 0
-        ''', (cash_id,))
+            db.execute('''
+                UPDATE sales
+                SET closed = 1
+                WHERE cash_register_id = ? AND closed = 0
+            ''', (cash_id,))
 
-        _record_action(
-            db, cash_id, current_user_id, owner_user_id,
-            'close' if is_owner else 'close_cross',
-            notes if not is_owner else None
-        )
+            _record_action(
+                db, cash_id, current_user_id, owner_user_id,
+                'close' if is_owner else 'close_cross',
+                notes if not is_owner else None
+            )
 
         return jsonify({
             'message': 'Caja cerrada exitosamente',
@@ -302,83 +306,85 @@ def close_and_open():
 
         db = Database(get_db_path())
 
-        register = db.fetch_one('SELECT * FROM cash_registers WHERE status = \'open\' ORDER BY id DESC LIMIT 1')
-        if not register:
-            return jsonify({'error': 'No hay un turno activo para cerrar'}), 404
+        # Transacción atómica: cierre + apertura del siguiente turno en un solo paso
+        with db.write():
+            register = db.fetch_one('SELECT * FROM cash_registers WHERE status = \'open\' ORDER BY id DESC LIMIT 1')
+            if not register:
+                return jsonify({'error': 'No hay un turno activo para cerrar'}), 404
 
-        owner_user_id = register['user_id']
-        is_owner = (current_user_id == owner_user_id)
+            owner_user_id = register['user_id']
+            is_owner = (current_user_id == owner_user_id)
 
-        if not is_owner:
-            if not owner_password:
-                return jsonify({
-                    'error': 'Para cerrar el turno de otro usuario debes confirmar con la contraseña del dueño',
-                    'requires_password': True,
-                    'owner_user_id': owner_user_id
-                }), 403
-            owner_user = db.fetch_one('SELECT password_hash FROM users WHERE id = ?', (owner_user_id,))
-            if not owner_user or not Security.verify_password(owner_password, owner_user['password_hash']):
-                return jsonify({'error': 'Contraseña del dueño incorrecta'}), 403
+            if not is_owner:
+                if not owner_password:
+                    return jsonify({
+                        'error': 'Para cerrar el turno de otro usuario debes confirmar con la contraseña del dueño',
+                        'requires_password': True,
+                        'owner_user_id': owner_user_id
+                    }), 403
+                owner_user = db.fetch_one('SELECT password_hash FROM users WHERE id = ?', (owner_user_id,))
+                if not owner_user or not Security.verify_password(owner_password, owner_user['password_hash']):
+                    return jsonify({'error': 'Contraseña del dueño incorrecta'}), 403
 
-        stats = _stats_for_register(db, register)
-        expected = float(register['opening_amount'] or 0) + stats['cash_total']
-        counted_cash = closing.get('counted_cash')
-        if counted_cash is not None and counted_cash != '':
-            counted = float(counted_cash)
-            difference = counted - expected
-        else:
-            counted = expected
-            difference = 0
-        close_notes = closing.get('notes', '')
+            stats = _stats_for_register(db, register)
+            expected = float(register['opening_amount'] or 0) + stats['cash_total']
+            counted_cash = closing.get('counted_cash')
+            if counted_cash is not None and counted_cash != '':
+                counted = float(counted_cash)
+                difference = counted - expected
+            else:
+                counted = expected
+                difference = 0
+            close_notes = closing.get('notes', '')
 
-        db.execute('''
-            UPDATE cash_registers
-            SET close_date = ?,
-                total_sales = ?,
-                total_cash = ?,
-                total_card = ?,
-                expected_amount = ?,
-                counted_amount = ?,
-                difference = ?,
-                notes = ?,
-                status = 'closed'
-            WHERE id = ?
-        ''', (
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            stats['sales_total'],
-            stats['cash_total'],
-            stats['card_total'],
-            round(expected, 2),
-            round(counted, 2),
-            round(difference, 2),
-            close_notes,
-            register['id']
-        ))
+            db.execute('''
+                UPDATE cash_registers
+                SET close_date = ?,
+                    total_sales = ?,
+                    total_cash = ?,
+                    total_card = ?,
+                    expected_amount = ?,
+                    counted_amount = ?,
+                    difference = ?,
+                    notes = ?,
+                    status = 'closed'
+                WHERE id = ?
+            ''', (
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                stats['sales_total'],
+                stats['cash_total'],
+                stats['card_total'],
+                round(expected, 2),
+                round(counted, 2),
+                round(difference, 2),
+                close_notes,
+                register['id']
+            ))
 
-        db.execute('''
-            UPDATE sales
-            SET closed = 1
-            WHERE cash_register_id = ? AND closed = 0
-        ''', (register['id'],))
+            db.execute('''
+                UPDATE sales
+                SET closed = 1
+                WHERE cash_register_id = ? AND closed = 0
+            ''', (register['id'],))
 
-        _record_action(
-            db, register['id'], current_user_id, owner_user_id,
-            'close_and_open_close' if is_owner else 'close_and_open_close_cross',
-            close_notes
-        )
+            _record_action(
+                db, register['id'], current_user_id, owner_user_id,
+                'close_and_open_close' if is_owner else 'close_and_open_close_cross',
+                close_notes
+            )
 
-        new_opening = float(opening.get('opening_amount', 0) or 0)
-        new_notes = opening.get('notes', '')
-        new_terminal = opening.get('terminal', '')
-        user = db.fetch_one('SELECT id, full_name, username FROM users WHERE id = ?', (current_user_id,))
-        cashier_name = opening.get('cashier_name') or (user['full_name'] or user['username'] or 'Cajero' if user else 'Cajero')
+            new_opening = float(opening.get('opening_amount', 0) or 0)
+            new_notes = opening.get('notes', '')
+            new_terminal = opening.get('terminal', '')
+            user = db.fetch_one('SELECT id, full_name, username FROM users WHERE id = ?', (current_user_id,))
+            cashier_name = opening.get('cashier_name') or (user['full_name'] or user['username'] or 'Cajero' if user else 'Cajero')
 
-        cursor = db.execute('''
-            INSERT INTO cash_registers (opening_amount, cashier_name, status, user_id, terminal, notes, open_date)
-            VALUES (?, ?, 'open', ?, ?, ?, ?)
-        ''', (new_opening, cashier_name, current_user_id, new_terminal, new_notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-        new_id = cursor.lastrowid
-        _record_action(db, new_id, current_user_id, current_user_id, 'open_after_close', new_notes)
+            cursor = db.execute('''
+                INSERT INTO cash_registers (opening_amount, cashier_name, status, user_id, terminal, notes, open_date)
+                VALUES (?, ?, 'open', ?, ?, ?, ?)
+            ''', (new_opening, cashier_name, current_user_id, new_terminal, new_notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            new_id = cursor.lastrowid
+            _record_action(db, new_id, current_user_id, current_user_id, 'open_after_close', new_notes)
 
         return jsonify({
             'message': 'Turno cerrado y nuevo turno abierto',
