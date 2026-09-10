@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS EXPENDIO BB - Login</title>
+    <link rel="icon" type="image/png" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0072ce 0%, #d71920 100%);
+            margin: 0;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            border-top: 5px solid #ffd100;
+        }
+        .login-logo {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .login-logo img {
+            max-width: 160px;
+            max-height: 120px;
+            object-fit: contain;
+        }
+        .login-title {
+            text-align: center;
+            color: #1f2937;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #0072ce;
+        }
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #0072ce 0%, #0057a8 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 114, 206, 0.35);
+        }
+        .login-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .login-error {
+            background: #fee2e2;
+            color: #b91c1c;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .default-credentials {
+            background: #fef3c7;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #92400e;
+            margin-top: 20px;
+        }
+        .default-credentials strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-logo"><img src="/static/logoicono.png" alt="Logo Expendio BB"></div>
+        <h1 class="login-title">POS EXPENDIO BB</h1>
+        <p class="login-subtitle">Pan Bimbo & Productos Barcel</p>
+        
+        <div id="errorMessage" class="login-error"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="username">Usuario</label>
+                <input type="text" id="username" class="form-input" placeholder="admin" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="password">Contraseña</label>
+                <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" id="loginButton" class="login-button">Iniciar Sesión</button>
+        </form>
+        
+        <div class="default-credentials">
+            <strong>Credenciales de prueba:</strong>
+            Admin: admin / admin123<br>
+            Supervisor: supervisor / super123<br>
+            Cajero: cajero / cajero123
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('errorMessage');
+            const button = document.getElementById('loginButton');
+            
+            errorEl.style.display = 'none';
+            button.disabled = true;
+            button.textContent = 'Iniciando sesión...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('pos_token', data.token);
+                    localStorage.setItem('pos_user', JSON.stringify(data.user));
+                    localStorage.setItem('pos_permissions', JSON.stringify(data.permissions));
+                    
+                    window.location.href = '/dashboard';
+                } else {
+                    errorEl.textContent = data.error || 'Error de inicio de sesión';
+                    errorEl.style.display = 'block';
+                    button.disabled = false;
+                    button.textContent = 'Iniciar Sesión';
+                }
+            } catch (error) {
+                errorEl.textContent = 'Error de conexión: ' + error.message;
+                errorEl.style.display = 'block';
+                button.disabled = false;
+                button.textContent = 'Iniciar Sesión';
+            }
+        });
+    </script>
+</body>
+</html>

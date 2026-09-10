@@ -1,0 +1,27 @@
+# Entorno Python
+venv/
+__pycache__/
+*.pyc
+
+# Base de datos real de la tienda (nunca subir)
+server/static/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Copias de seguridad y datos de la tienda
+pos/backup/
+pos/exports/
+
+# Datos de negocio
+CATALOGO.xlsx
+*.xlsx
+
+# Logs
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

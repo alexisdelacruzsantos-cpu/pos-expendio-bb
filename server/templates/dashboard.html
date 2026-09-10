@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS EXPENDIO BB - Dashboard</title>
+    <link rel="icon" type="image/png" href="/static/icons/icon-192.png">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0072ce">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="app-container app-container-no-sidebar">
+        <!-- Header con tabs de navegación -->
+        <header class="topbar">
+            <div class="topbar-brand">
+                <button class="ubuntu-menu-btn" id="ubuntuMenuBtn" aria-label="Menú de aplicaciones" title="Menú de aplicaciones (Super+A)">
+                    <span class="ubuntu-icon">
+                        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    </span>
+                </button>
+                <img src="/static/logoicono.png" alt="Logo" class="topbar-logo-img">
+            </div>
+    <nav class="topbar-nav">
+        <button class="topbar-tab active" data-section="sales">
+            <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></span>
+            <span>Ventas</span>
+        </button>
+        <button class="topbar-tab" data-section="cash">
+            <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg></span>
+            <span>Caja</span>
+        </button>
+    </nav>
+            <div class="topbar-right">
+                <button class="shift-chip" id="shiftChip" onclick="navigateTo('cash')" title="Ver turno de caja">
+                    <span class="shift-chip-dot" id="shiftChipDot"></span>
+                    <span id="shiftChipLabel">Sin turno</span>
+                </button>
+                <div class="global-clock" id="globalClock" title="Fecha y hora actual">
+                    <span class="global-clock-icon"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+                    <div class="global-clock-text">
+                        <span class="global-clock-date" id="bottomClockDate"></span>
+                        <span class="global-clock-time" id="bottomClockTime"></span>
+                    </div>
+                </div>
+                <span class="user-info-mini">
+                    <span class="user-name" id="userName">Usuario</span>
+                    <span class="user-role" id="userRole">Rol</span>
+                </span>
+                <button class="logout-btn-mini" onclick="logout()" title="Cerrar Sesión">
+                    <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Menú mosaico estilo Ubuntu -->
+        <div class="ubuntu-overlay" id="ubuntuOverlay">
+            <div class="ubuntu-panel">
+                <div class="ubuntu-panel-header">
+                    <h2 class="ubuntu-panel-title">Aplicaciones</h2>
+                    <button class="ubuntu-close-btn" id="ubuntuCloseBtn" aria-label="Close">✕</button>
+                </div>
+                <div class="ubuntu-search">
+                    <span class="ubuntu-search-icon">🔍</span>
+                    <input type="text" id="ubuntuSearchInput" placeholder="Filtrar aplicaciones..." autocomplete="off" autocorrect="off" spellcheck="false">
+                </div>
+                <div class="ubuntu-grid" id="ubuntuGrid">
+                    <button class="ubuntu-tile" data-section="sales" data-shortcut="1">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></span>
+                        <span class="ubuntu-tile-label">Ventas</span>
+                        <span class="ubuntu-tile-shortcut">1</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="products" data-shortcut="2">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></span>
+                        <span class="ubuntu-tile-label">Productos</span>
+                        <span class="ubuntu-tile-shortcut">2</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="inventory" data-shortcut="3">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></svg></span>
+                        <span class="ubuntu-tile-label">Agregar inventario</span>
+                        <span class="ubuntu-tile-shortcut">3</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="adjustments" data-shortcut="a">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></span>
+                        <span class="ubuntu-tile-label">Ajustes</span>
+                        <span class="ubuntu-tile-shortcut">A</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="lots" data-shortcut="4">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span>
+                        <span class="ubuntu-tile-label">Lotes</span>
+                        <span class="ubuntu-tile-shortcut">4</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="reports" data-shortcut="5">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l2-4 2 4 3-6 2 6"></path></svg></span>
+                        <span class="ubuntu-tile-label">Reportes</span>
+                        <span class="ubuntu-tile-shortcut">5</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="cash" data-shortcut="6">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg></span>
+                        <span class="ubuntu-tile-label">Caja</span>
+                        <span class="ubuntu-tile-shortcut">6</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="promotions" data-shortcut="7">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6a2 2 0 0 0 .5 1.4l7 6a2 2 0 0 0 1.3.6 2 2 0 0 0 1.4-.6l4-4a2 2 0 0 0 0-2.8l-2-2a2 2 0 0 0-2.8 0L7.4 17.5a2 2 0 0 0-.6 1.3v6"></path><circle cx="8.5" cy="8.5" r="1.5"></circle></svg></span>
+                        <span class="ubuntu-tile-label">Promos</span>
+                        <span class="ubuntu-tile-shortcut">7</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="settings" data-shortcut="8">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span>
+                        <span class="ubuntu-tile-label">Config</span>
+                        <span class="ubuntu-tile-shortcut">8</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="inventory-history" data-shortcut="9">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg></span>
+                        <span class="ubuntu-tile-label">Historial</span>
+                        <span class="ubuntu-tile-shortcut">9</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="existencias" data-shortcut="0">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l2-4 2 4 3-6 2 6"></path></svg></span>
+                        <span class="ubuntu-tile-label">Existencias</span>
+                        <span class="ubuntu-tile-shortcut">0</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="orders">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg></span>
+                        <span class="ubuntu-tile-label">Pedidos</span>
+                    </button>
+                    <button class="ubuntu-tile" data-section="import">
+                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg></span>
+                        <span class="ubuntu-tile-label">Importar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub-vistas genéricas (mismo estilo Ubuntu, más compacto) -->
+        <div class="ubuntu-overlay" id="subviewsOverlay">
+            <div class="ubuntu-panel ubuntu-panel-compact">
+                <div class="ubuntu-panel-header">
+                    <h2 class="ubuntu-panel-title" id="subviewsTitle">Vistas</h2>
+                    <button class="ubuntu-close-btn" id="subviewsCloseBtn" aria-label="Close">✕</button>
+                </div>
+                <div class="ubuntu-grid" id="subviewsGrid"></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content main-content-full">
+            <!-- Page Title -->
+            <div class="page-title-bar">
+                <h1 id="sectionTitle">Ventas</h1>
+            </div>
+            
+            <!-- Sales Section -->
+            <section class="content-section active" id="salesSection" style="padding:0;overflow:hidden">
+                <div class="pos-layout">
+                    <!-- Header del POS -->
+                    <div class="pos-header">
+                        <div class="pos-search-bar">
+                            <input type="text" id="posSearchInput" class="pos-search" placeholder="Escanea código o escribe para buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="handlePosKey(event)" oninput="onPosSearchChange()">
+                            <button class="pos-search-btn" onclick="openProductSearchModal()" title="Buscar producto (F10)">
+                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg> Buscar
+                    </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel de resultados de búsqueda (overlay sobre el carrito) -->
+                    <div class="pos-search-overlay" id="posSearchOverlay">
+                        <div class="pos-search-overlay-header">
+                            <strong>Resultados de búsqueda</strong>
+                            <button class="pos-search-close" onclick="closeSearchResults()" type="button">✕ Cerrar</button>
+                        </div>
+                        <div class="pos-search-filters">
+                            <label class="pos-filter-chip">
+                                <input type="checkbox" id="posFilterInStock" onchange="onPosFilterChange()">
+                                <span>✅ Solo con stock</span>
+                            </label>
+                            <label class="pos-filter-chip">
+                                <span>Ordenar:</span>
+                                <select id="posFilterSort" onchange="onPosFilterChange()">
+                                    <option value="name_asc">Nombre A-Z</option>
+                                    <option value="stock_desc">Stock mayor a menor</option>
+                                    <option value="stock_asc">Stock menor a mayor</option>
+                                    <option value="price_asc">Precio menor a mayor</option>
+                                    <option value="price_desc">Precio mayor a menor</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="pos-search-results-list" id="posSearchResultsList">
+                            <!-- Resultados dinámicos -->
+                        </div>
+                    </div>
+
+                    <!-- Carrito a pantalla completa -->
+                    <div class="pos-cart-area pos-cart-full">
+                        <div class="pos-cart-header">
+                            <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg> Ticket de Venta</h3>
+                            <span class="pos-cart-shortcuts">
+                                <span class="kbd">F10</span> Buscar
+                                <span class="kbd">Del</span> Eliminar
+                                <span class="kbd">Ctrl+Del</span> Vaciar
+                            </span>
+                        </div>
+                        <div class="pos-cart-table-wrap">
+                            <table class="pos-table pos-cart-table" id="posCartTable">
+                                <thead>
+                                    <tr>
+                                        <th class="col-num">#</th>
+                                        <th>Producto</th>
+                                        <th>Código</th>
+                                        <th>P.Unit</th>
+                                        <th>Cantidad</th>
+                                        <th>Descuento</th>
+                                        <th>Subtotal</th>
+                                        <th>Lote</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="posCartBody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Resumen y pago -->
+                        <div class="pos-cart-summary">
+                            <div class="pos-cart-info-row">
+                                <div class="pos-cart-count-label">
+                                    <span id="posCartCount">0 productos</span>
+                                    <button class="pos-clear-cart-btn" id="posClearCartBtn" onclick="confirmClearCart()" style="display:none" title="Vaciar carrito">🗑️ Vaciar</button>
+                                </div>
+                                <div class="pos-cart-totals-inline">
+                                    <div class="pos-totals-mini">
+                                        <div class="mini-row"><span>Subtotal:</span><span id="posSubtotal">$0.00</span></div>
+                                        <div class="mini-row discount" id="posDiscountRow"><span>Descuento promos:</span><span id="posDiscount">-$0.00</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pos-promo-info" id="posPromoInfo"></div>
+                            <div class="pos-payment-row">
+                                <div class="pos-last-sale" id="posLastSaleInfo">
+                                    <div class="pos-last-sale-title">Última venta</div>
+                                    <div class="pos-last-sale-grid">
+                                        <div class="pos-last-sale-item">
+                                            <span class="pos-last-sale-label">Total:</span>
+                                            <span class="pos-last-sale-value" id="lastSaleTotal">$0.00</span>
+                                        </div>
+                                        <div class="pos-last-sale-item">
+                                            <span class="pos-last-sale-label">Pago con:</span>
+                                            <span class="pos-last-sale-value" id="lastSalePay">—</span>
+                                        </div>
+                                        <div class="pos-last-sale-item">
+                                            <span class="pos-last-sale-label">Cambio:</span>
+                                            <span class="pos-last-sale-value" id="lastSaleChange">—</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="pos-history-btn" id="posHistoryBtn" onclick="openSalesHistory()" title="Historial de ventas y devoluciones del día">
+                                    <span class="pos-history-btn-icon">🧾</span>
+                                    <span class="pos-history-btn-text">Ventas y devoluciones</span>
+                                </button>
+                                <div class="pos-total-card" id="posTotalCard" role="button" tabindex="0" onclick="openPaymentModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPaymentModal();}">
+                                    <div class="pos-total-big" id="posTotal">$0.00</div>
+                                    <div class="pos-total-hint">Click o F12 para cobrar</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Products Section -->
+            <section class="content-section" id="productsSection">
+                <div class="products-hero">
+                    <div class="inv-title-row">
+                        <div>
+                            <h2 class="inv-title"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Productos</h2>
+                            <p class="inv-subtitle">Catálogo, precios y registro de productos</p>
+                        </div>
+                        <div class="products-view-toggles">
+                            <button class="view-toggle-btn active" id="viewToggleCards" onclick="switchProductsView('cards')" title="Vista tarjetas">
+                                <span>▦</span>
+                            </button>
+                            <button class="view-toggle-btn" id="viewToggleTable" onclick="switchProductsView('table')" title="Vista tabla">
+                                <span>☰</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="products-controls-row">
+                        <input type="text" id="productSearch" placeholder="Buscar por nombre o código, o escanea un código y presiona Enter…" class="search-input products-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="searchProducts()" onkeydown="handleProductQuickScan(event)">
+                        <select id="productCategoryFilter" class="products-cat-select" onchange="filterProductsByCategory()" title="Filtrar por categoría">
+                            <option value="">Todas</option>
+                        </select>
+                        <div class="inv-filter-chips" id="productsStockChips">
+                            <button class="inv-chip active" data-filter="all" onclick="setProductsStockFilter('all')">Todos</button>
+                            <button class="inv-chip" data-filter="in_stock" onclick="setProductsStockFilter('in_stock')">✅ Stock</button>
+                            <button class="inv-chip" data-filter="out_stock" onclick="setProductsStockFilter('out_stock')">🔴 Agotados</button>
+                        </div>
+                        <button class="btn btn-secondary" onclick="goToCategories()">🗂 Categorías</button>
+                        <button class="btn btn-secondary" onclick="exportProductsCsv()">⇩ Excel</button>
+                        <button class="btn btn-secondary" onclick="exportProductsPdf()">⇩ PDF</button>
+                        <button class="btn btn-primary" onclick="showAddProductModal()">+ Nuevo</button>
+                    </div>
+                </div>
+
+                <span class="products-count" id="productsCount" style="display:none">0 productos</span>
+
+                <!-- Sub-vista: Tarjetas -->
+                <div class="inv-subview" id="productsSubviewCards">
+                    <div class="inv-card-grid" id="productsCardGrid"></div>
+                </div>
+
+                <!-- Sub-vista: Tabla -->
+                <div class="inv-subview" id="productsSubviewTable" style="display:none">
+                    <div class="products-table-container">
+                        <table class="data-table products-table" id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="barcode" onclick="sortProducts('barcode')">Código<span class="sort-ind"></span></th>
+                                    <th data-sort="name" onclick="sortProducts('name')">Producto<span class="sort-ind"></span></th>
+                                    <th data-sort="category" onclick="sortProducts('category')">Categoría<span class="sort-ind"></span></th>
+                                    <th data-sort="cost" onclick="sortProducts('cost')" class="num">Costo<span class="sort-ind"></span></th>
+                                    <th data-sort="price" onclick="sortProducts('price')" class="num">Precio<span class="sort-ind"></span></th>
+                                    <th data-sort="ganancia" onclick="sortProducts('ganancia')" class="num">Ganancia<span class="sort-ind"></span></th>
+                                    <th data-sort="lots_count" onclick="sortProducts('lots_count')" class="num">Lotes<span class="sort-ind"></span></th>
+                                    <th data-sort="effective_stock" onclick="sortProducts('effective_stock')" class="num">Existencias<span class="sort-ind"></span></th>
+                                    <th class="actions-col">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Lots Section -->
+            <section class="content-section" id="lotsSection">
+                <div class="section-header">
+                    <input type="text" id="lotSearch" placeholder="Buscar por producto o lote..." class="search-input" autocomplete="off" autocorrect="off" spellcheck="false" oninput="filterLots()">
+                    <button class="btn btn-primary" onclick="showAddLotModal()">+ Nuevo Lote</button>
+                </div>
+
+                <div class="lots-tabs">
+                    <button class="lots-tab active" data-tab="lotsList" onclick="switchLotsTab('lotsList')">
+                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Lotes
+                    </button>
+                </div>
+
+                <div class="lots-tab-panel" id="lotsListPanel">
+                    <div class="lots-stats" id="lotsStats">
+                        <div class="stat-card stat-danger" id="statExpired">0 Caducados</div>
+                        <div class="stat-card stat-warning" id="statCritical">0 Críticos</div>
+                        <div class="stat-card stat-warning" id="statWarning">0 Próximos</div>
+                        <div class="stat-card stat-ok" id="statOk">0 OK</div>
+                    </div>
+
+                    <div class="lots-grid" id="lotsGrid">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Existencias Section -->
+            <section class="content-section" id="existenciasSection">
+                    <div class="inv-search-wrap" style="max-width:600px;margin:12px auto 16px">
+                        <span class="inv-search-icon">🔍</span>
+                        <input type="text" id="lotsCutSearch" class="inv-search-input"
+                            placeholder="Buscar producto por nombre o código..."
+                            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                            oninput="renderLotsCut()">
+                    </div>
+                    <div class="lots-cut-stats" id="lotsCutStats">
+                        <div class="inv-stat"><span class="inv-stat-num" id="cutStatProducts">0</span><span class="inv-stat-lbl">Productos</span></div>
+                        <div class="inv-stat inv-stat-ok"><span class="inv-stat-num" id="cutStatLots">0</span><span class="inv-stat-lbl">Sublotes</span></div>
+                        <div class="inv-stat inv-stat-warn"><span class="inv-stat-num" id="cutStatUnits">0</span><span class="inv-stat-lbl">Unidades</span></div>
+                        <div class="inv-stat"><span class="inv-stat-num" id="cutStatValue">$0.00</span><span class="inv-stat-lbl">Valor inventario</span></div>
+                    </div>
+                    <div class="lots-cut-list" id="lotsCutList"></div>
+            </section>
+
+            <!-- Inventory Section -->
+            <section class="content-section" id="inventorySection">
+                <div class="inv-layout">
+
+                    <!-- Panel izquierdo: buscador + acción rápida -->
+                    <aside class="inv-side-panel-left">
+                        <div class="inv-search-wrap">
+<span class="inv-search-icon"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg></span>
+                            <input type="text" id="inventorySearch" class="inv-search-input"
+                                placeholder="Buscar o escanea código + Enter…"
+                                title="Escanea un código de barras y presiona Enter para abrir el modal de agregado rápido"
+                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                                oninput="onInventorySearchChange()">
+                            <button class="inv-search-clear" id="invSearchClear" onclick="clearInventorySearch()" type="button" style="display:none">✕</button>
+                        </div>
+                        <p class="inv-search-hint">⚡ Escanea código + Enter = agregado rápido</p>
+                    </aside>
+
+                    <!-- Área principal: tarjetas -->
+                    <div class="inv-main-area">
+                        <div class="inv-stat-bar" id="invStatBar" style="display:none">
+                            <div class="inv-stat inv-stat-ok"><span class="inv-stat-num" id="invStatOk">0</span><span class="inv-stat-lbl">Con stock</span></div>
+                            <div class="inv-stat inv-stat-out"><span class="inv-stat-num" id="invStatOut">0</span><span class="inv-stat-lbl">Agotados</span></div>
+                            <div class="inv-stat inv-stat-warn"><span class="inv-stat-num" id="invStatExp">0</span><span class="inv-stat-lbl">Por caducar</span></div>
+                            <div class="inv-stat"><span class="inv-stat-num" id="invStatValue">$0.00</span><span class="inv-stat-lbl">Valor inventario</span></div>
+                        </div>
+
+                        <!-- Tarjetas -->
+                        <div class="inv-subview" id="invSubviewCards">
+                            <div class="inv-help" id="invHelp">
+                                <div class="inv-help-icon"><svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
+                                <p class="inv-help-text">Empieza a escribir o escanea un producto para ver resultados</p>
+                                <p class="inv-help-hint">Tip: si escaneas un código, abriremos el detalle del producto al instante</p>
+                            </div>
+                            <div class="inv-card-grid" id="invCardGrid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel lateral de detalle -->
+                <div class="inv-side-overlay" id="invSideOverlay" onclick="closeInventoryDetail()"></div>
+                <aside class="inv-side-panel" id="invSidePanel" aria-hidden="true">
+                    <div class="inv-side-header">
+                        <h3 id="invSideTitle">Detalle de producto</h3>
+                        <button class="inv-side-close" onclick="closeInventoryDetail()" type="button" aria-label="Cerrar">✕</button>
+                    </div>
+                    <div class="inv-side-body" id="invSideBody"></div>
+                </aside>
+            </section>
+
+            <!-- Historial de Movimientos (independiente de Inventario) -->
+            <section class="content-section" id="inventory-historySection">
+                <div class="inv-history-header">
+                    <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg> Historial de Movimientos</h3>
+                    <span class="mh-results-count" id="mhResultsCount">0 movimientos</span>
+                </div>
+                <div class="mh-filters-row">
+                    <div class="mh-filter-group">
+                        <label for="mhDayFilter"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg> Día</label>
+                        <select id="mhDayFilter" onchange="filterMovementsHistory()"></select>
+                    </div>
+                    <div class="mh-filter-group">
+                        <label for="mhTypeFilter"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Tipo</label>
+                        <select id="mhTypeFilter" onchange="filterMovementsHistory()">
+                            <option value="">Todos</option>
+                            <option value="entry">Ingresos</option>
+                            <option value="sale">Ventas</option>
+                            <option value="return">Devoluciones</option>
+                            <option value="sale_cancelled">Cancelaciones</option>
+                            <option value="adjustment">Ajustes</option>
+                            <option value="product_created">Creaciones</option>
+                            <option value="product_updated">Modificaciones</option>
+                            <option value="price_changed">Cambios de precio</option>
+                            <option value="product_deleted">Eliminaciones</option>
+                            <option value="lot_updated">Lote modificado</option>
+                            <option value="lot_deleted">Lote eliminado</option>
+                        </select>
+                    </div>
+                    <div class="mh-filter-group mh-search-group">
+                        <label for="mhSearchInput"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg> Buscar</label>
+                        <input type="text" id="mhSearchInput" placeholder="Producto o código..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="filterMovementsHistory()">🔄 Actualizar</button>
+                </div>
+                <div class="inv-history-wrap" id="inventoryMovementsWrap">
+                    <table class="data-table" style="font-size:12px;">
+                        <thead>
+                            <tr>
+                                <th>Fecha / Hora</th>
+                                <th>Producto</th>
+                                <th>Código</th>
+                                <th>Lote</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Antes</th>
+                                <th>Después</th>
+                                <th>Nota / Usuario</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryMovementsBody">
+                            <tr><td colspan="9" style="text-align:center;color:#6b7280;padding:16px;">Cargando historial...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Ajustes de Inventario (vista independiente) -->
+            <section class="content-section" id="adjustmentsSection">
+                <div class="adjustments-layout">
+
+                    <!-- Panel izquierdo: búsqueda -->
+                    <div class="adjustments-search-panel">
+                        <div class="adjustments-search-box">
+                            <div class="adjustments-search-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></div>
+                            <input type="text" id="adjustmentsSearch" class="adjustments-search-input"
+                                placeholder="Escanea código de barras o escribe para buscar…"
+                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                                onkeydown="handleAdjustmentsKey(event)" oninput="onAdjustmentsSearchInput()">
+                            <button class="adjustments-search-clear" id="adjustmentsSearchClear" onclick="clearAdjustmentsSearch()" type="button" style="display:none">✕</button>
+                        </div>
+                        <p class="adjustments-search-hint">⚡ Escanea o busca un producto para ajustarlo</p>
+
+                        <div class="adjustments-recent-title">🔍 Búsqueda reciente</div>
+                        <div class="adjustments-recent-list" id="adjustmentsRecentList"></div>
+                    </div>
+
+                    <!-- Panel derecho: formulario de ajuste -->
+                    <div class="adjustments-form-panel">
+                        <div class="adjustments-empty" id="adjustmentsEmpty">
+                            <div class="adjustments-empty-icon"><svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></div>
+                            <h3>Ajustar Inventario</h3>
+                            <p>Busca un producto por código de barras o por nombre para realizar un ajuste de inventario, stock y precios.</p>
+                        </div>
+
+                        <div class="adjustments-product-card" id="adjustmentsProductCard" style="display:none">
+                            <div class="adjustments-product-header">
+                                <div>
+                                    <div class="adjustments-product-code" id="adjustmentsProductCode"></div>
+                                    <h3 class="adjustments-product-name" id="adjustmentsProductName"></h3>
+                                    <div class="adjustments-product-cat" id="adjustmentsProductCat"></div>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="clearAdjustmentsSelection()">✕</button>
+                            </div>
+
+                            <div class="adjustments-lot-section" id="adjustmentsLotSection" style="display:none">
+                                <div class="adjustments-lot-title">📦 Lotes disponibles</div>
+                                <div class="adjustments-lot-list" id="adjustmentsLotList"></div>
+                            </div>
+
+                            <div class="adjustments-form-grid">
+                                <div class="adjustments-field">
+                                    <label>Código del Producto</label>
+                                    <div class="adjustments-field-value" id="adjustmentsFieldCode"></div>
+                                </div>
+                                <div class="adjustments-field">
+                                    <label>Descripción</label>
+                                    <div class="adjustments-field-value" id="adjustmentsFieldDesc"></div>
+                                </div>
+                                <div class="adjustments-field">
+                                    <label>Cantidad Actual</label>
+                                    <div class="adjustments-field-value" id="adjustmentCurrentQuantity">—</div>
+                                </div>
+                                <div class="adjustments-field adjustments-field-adjust">
+                                    <label>Parámetro de Ajuste (+/-)</label>
+                                    <div class="adjustments-field-value">
+                                        <button class="adjustments-sign-btn" onclick="adjustAmount(-1)" type="button">−</button>
+                                        <input type="text" id="adjustmentAmount" value="-1" inputmode="numeric" pattern="[0-9+-]*" oninput="onAdjustmentAmountInput()">
+                                        <button class="adjustments-sign-btn" onclick="adjustAmount(1)" type="button">+</button>
+                                    </div>
+                                </div>
+                                <div class="adjustments-field adjustments-field-newqty">
+                                    <label>Nueva Cantidad (calculada)</label>
+                                    <div class="adjustments-field-value"><span class="currency-prefix"></span><input type="number" id="adjustmentNewQuantity" min="0" step="1" inputmode="numeric" value="" oninput="onAdjustmentNewQuantityInput()">
+                                    </div>
+                                </div>
+                                <div class="adjustments-field">
+                                    <label>Costo</label>
+                                    <div class="adjustments-field-value"><span class="currency-prefix">$</span><input type="number" id="adjustmentsCost" min="0" step="0.01" inputmode="decimal" value="0"></div>
+                                </div>
+                                <div class="adjustments-field">
+                                    <label>Precio Venta</label>
+                                    <div class="adjustments-field-value"><span class="currency-prefix">$</span><input type="number" id="adjustmentsPrice" min="0" step="0.01" inputmode="decimal" value="0"></div>
+                                </div>
+                                <div class="adjustments-field adjustments-field-reason">
+                                    <label>Motivo del Ajuste</label>
+                                    <div class="adjustments-field-value">
+                                        <input type="text" id="adjustmentsReason" placeholder="Ej: conteo físico, merma, error de captura…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="updateAdjustmentPreview()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="adjustments-warning" id="adjustmentWarning" style="display:none"></div>
+                            <div class="adjustments-actions">
+                                <button class="btn btn-primary adjustments-submit" id="submitAdjustmentBtn" onclick="submitAdjustment(event)" type="button">🔄 Realizar ajuste de inventario</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Importar existencias / catálogo -->
+            <section class="content-section" id="importSection">
+                <div class="reports-tabs import-tabs">
+                    <button class="tab-btn active" onclick="switchImportTab('exist')">📦 Existencias</button>
+                    <button class="tab-btn" onclick="switchImportTab('catalog')">🗂 Catálogo (POS anterior)</button>
+                </div>
+
+                <div id="importExistPanel">
+                    <div class="products-hero">
+                        <div class="inv-title-row">
+                            <div>
+                                <h2 class="inv-title"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg> Importar existencias</h2>
+                                <p class="inv-subtitle">Carga un archivo Excel con códigos y cantidades para sumar stock</p>
+                            </div>
+                        </div>
+                        <div class="products-controls-row" style="flex-wrap:wrap">
+                            <button class="btn btn-primary" onclick="downloadImportTemplate()">⇩ Descargar plantilla (Excel)</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('importFileInput').click()">📄 Elegir archivo</button>
+                            <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="readImportFile(event)">
+                            <span class="import-file-name" id="importFileName" style="color:#6b7280;font-size:13px;align-self:center">Ningún archivo seleccionado</span>
+                        </div>
+                    </div>
+
+                    <div class="import-preview-wrap" id="importPreviewWrap" style="display:none;margin-top:16px">
+                        <div class="import-summary-chips" id="importSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+                        <div style="display:flex;gap:8px;margin-bottom:12px">
+                            <button class="btn btn-secondary" onclick="resetImport()">✗ Descartar</button>
+                            <button class="btn btn-primary" id="importApplyBtn" onclick="applyImport()">✓ Aplicar existencias</button>
+                        </div>
+                        <div class="products-table-container">
+                            <table class="data-table products-table" id="importTable">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Producto</th>
+                                        <th class="num">Cantidad</th>
+                                        <th class="num">Stock actual</th>
+                                        <th class="num">Stock nuevo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="importTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="importWarnings" style="margin-top:12px"></div>
+                    </div>
+
+                    <div class="import-result" id="importResult" style="display:none;margin-top:16px"></div>
+                </div>
+
+                <div id="importCatalogPanel" style="display:none">
+                    <div class="products-hero">
+                        <div class="inv-title-row">
+                            <div>
+                                <h2 class="inv-title">🗂 Importar catálogo (POS anterior)</h2>
+                                <p class="inv-subtitle">Lee el CATALOGO.xlsx: código, producto, costo, venta, departamento y existencias. Los campos no usados del Excel se ignoran.</p>
+                            </div>
+                        </div>
+                        <div class="products-controls-row" style="flex-wrap:wrap">
+                            <button class="btn btn-secondary" onclick="document.getElementById('catalogFileInput').click()">📄 Elegir CATALOGO.xlsx</button>
+                            <input type="file" id="catalogFileInput" accept=".xlsx,.xlsm,.csv" style="display:none" onchange="readCatalogFile(event)">
+                            <span class="import-file-name" id="catalogFileName" style="color:#6b7280;font-size:13px;align-self:center">Ningún archivo seleccionado</span>
+                        </div>
+                    </div>
+
+                    <div class="catalog-options" id="catalogOptionsWrap" style="display:none;margin-top:16px">
+                        <label class="catalog-option">
+                            <input type="checkbox" id="catalogImportStock" checked>
+                            <span>Importar la columna <strong>Existencia</strong> como stock inicial de cada producto</span>
+                        </label>
+                    </div>
+
+                    <div class="import-preview-wrap" id="catalogPreviewWrap" style="display:none;margin-top:16px">
+                        <div class="import-summary-chips" id="catalogSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+                        <div id="catalogConflictBanner" style="margin-bottom:12px"></div>
+                        <div style="display:flex;gap:8px;margin-bottom:12px">
+                            <button class="btn btn-secondary" onclick="resetCatalogImport()">✗ Descartar</button>
+                            <button class="btn btn-primary" id="catalogApplyBtn" onclick="applyCatalogImport()">✓ Importar catálogo</button>
+                        </div>
+                        <div class="products-table-container">
+                            <table class="data-table products-table" id="catalogTable">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Producto</th>
+                                        <th class="num">Costo</th>
+                                        <th class="num">Venta</th>
+                                        <th>Depto.</th>
+                                        <th class="num">Existencia</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="catalogTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="catalogWarnings" style="margin-top:12px"></div>
+                    </div>
+
+                    <div class="import-result" id="catalogResult" style="display:none;margin-top:16px"></div>
+                </div>
+            </section>
+
+            <!-- Pedidos (herramienta de pedido, independiente) -->
+            <section class="content-section" id="ordersSection">
+                <div class="inv-history-header">
+                    <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg> Pedidos</h3>
+                    <span class="mh-results-count" id="ordersProductsCount">0 productos</span>
+                </div>
+                <div class="mh-filters-row">
+                    <div class="mh-filter-group mh-search-group">
+                        <label for="ordersSearchInput"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg> Buscar</label>
+                        <input type="text" id="ordersSearchInput" placeholder="Nombre o código de barras..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="filterOrdersTable()">
+                    </div>
+                    <div class="mh-filter-group">
+                        <label for="ordersCategoryFilter"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Categoría</label>
+                        <select id="ordersCategoryFilter" onchange="filterOrdersTable()"></select>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="filterOrdersTable()">🔄 Actualizar</button>
+                </div>
+                <div class="orders-layout">
+                    <div class="orders-products">
+                        <div class="inv-history-wrap">
+                            <table class="data-table orders-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código de barras</th>
+                                        <th>Nombre</th>
+                                        <th>Precio compra</th>
+                                        <th>Precio venta</th>
+                                        <th>Stock</th>
+                                        <th>Cantidad a pedir</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody">
+                                    <tr><td colspan="7" style="text-align:center;color:#6b7280;padding:16px;">Cargando catálogo...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="orders-cart">
+                        <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg>Pedido actual</h3>
+                        <div id="ordersCartBody">
+                            <p class="orders-cart-empty">El pedido está vacío. Agrega productos desde la tabla.</p>
+                        </div>
+                        <div class="orders-export-row">
+                            <button class="btn btn-secondary" onclick="exportOrderCsv()">⇩ Excel</button>
+                            <button class="btn btn-secondary" onclick="exportOrderPdf()">⇩ PDF</button>
+                            <button class="btn btn-secondary" onclick="exportOrderPng()">⇩ PNG</button>
+                            <button class="btn btn-danger" onclick="clearOrder()">Limpiar</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reportes de Inventario (independiente de Inventario) -->
+            <!-- Reports Section -->
+            <section class="content-section" id="reportsSection">
+                <div class="reports-tabs">
+                    <button class="tab-btn active" onclick="showReportTab('sales')">Ventas</button>
+                    <button class="tab-btn" onclick="showReportTab('inventory')">Inventario</button>
+                    <button class="tab-btn" onclick="showReportTab('expiry')">Caducidad</button>
+                    <button class="tab-btn" onclick="showReportTab('losses')">Mermas</button>
+                </div>
+
+                <!-- VENTAS -->
+                <div class="report-content" id="reportSalesTab">
+                    <div class="report-toolbar">
+                        <input type="date" id="salesDateFrom" class="date-filter-input" title="Desde">
+                        <input type="date" id="salesDateTo" class="date-filter-input" title="Hasta">
+                        <button class="btn btn-sm btn-primary" onclick="applySalesReport()">Aplicar</button>
+                        <button class="btn btn-sm" onclick="setSalesRange('today')">Hoy</button>
+                        <button class="btn btn-sm" onclick="setSalesRange('yesterday')">Ayer</button>
+                        <button class="btn btn-sm" onclick="setSalesRange('week')">7 días</button>
+                        <button class="btn btn-sm" onclick="setSalesRange('month')">Mes</button>
+                        <span style="flex:1"></span>
+                        <button class="btn btn-sm" onclick="exportSalesCsv()">⬇ CSV</button>
+                        <button class="btn btn-sm" onclick="exportSalesPdf()">⬇ PDF</button>
+                    </div>
+                    <div class="reports-grid">
+                        <div class="report-card">
+                            <h3>💰 Ventas</h3>
+                            <div class="report-value" id="rpSalesAmount">$0.00</div>
+                            <div class="report-detail" id="rpSalesCount">0 ventas</div>
+                        </div>
+                        <div class="report-card">
+                            <h3>🎫 Ticket promedio</h3>
+                            <div class="report-value" id="rpAvgTicket">$0.00</div>
+                            <div class="report-detail" id="rpMaxTicket">máx $0.00</div>
+                        </div>
+                        <div class="report-card warning">
+                            <h3>📦 Unidades vendidas</h3>
+                            <div class="report-value" id="rpUnits">0</div>
+                            <div class="report-detail">suma de piezas</div>
+                        </div>
+                        <div class="report-card">
+                            <h3>📈 Utilidad bruta</h3>
+                            <div class="report-value" id="rpProfit">$0.00</div>
+                            <div class="report-detail">ventas menos costo</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin:16px 0 8px">Por método de pago</h4>
+                    <table class="data-table" style="max-width:520px">
+                        <thead>
+                            <tr><th>Método</th><th>Ventas</th><th>Monto</th></tr>
+                        </thead>
+                        <tbody id="rpPaymentsBody"></tbody>
+                    </table>
+
+                    <h4 style="margin:20px 0 8px">Ventas por cajero</h4>
+                    <table class="data-table" style="max-width:520px">
+                        <thead>
+                            <tr><th>Cajero</th><th>Ventas</th><th>Monto</th></tr>
+                        </thead>
+                        <tbody id="rpCashiersBody"></tbody>
+                    </table>
+
+                    <h4 style="margin:20px 0 8px">Top productos</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Producto</th><th>Categoría</th>
+                                <th>Unidades</th><th>Ingresos</th><th>Costo</th><th>Utilidad</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rpTopProductsBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- INVENTARIO -->
+                <div class="report-content" id="reportInventoryTab" style="display:none">
+                    <div class="reports-grid">
+                        <div class="report-card">
+                            <h3>🏷️ Valor del inventario</h3>
+                            <div class="report-value" id="rpInvValue">$0.00</div>
+                            <div class="report-detail">a precio de costo</div>
+                        </div>
+                        <div class="report-card">
+                            <h3>📦 SKUs activos</h3>
+                            <div class="report-value" id="rpInvSkus">0</div>
+                            <div class="report-detail">productos</div>
+                        </div>
+                        <div class="report-card warning">
+                            <h3>⚠️ Stock bajo</h3>
+                            <div class="report-value" id="rpInvLow">0</div>
+                            <div class="report-detail">10 unidades o menos</div>
+                        </div>
+                        <div class="report-card danger">
+                            <h3>🚫 Agotados</h3>
+                            <div class="report-value" id="rpInvOut">0</div>
+                            <div class="report-detail">sin existencia</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin:0 0 8px">Valor por categoría</h4>
+                    <table class="data-table" style="max-width:520px">
+                        <thead>
+                            <tr><th>Categoría</th><th>Productos</th><th>Unidades</th><th>Valor</th></tr>
+                        </thead>
+                        <tbody id="rpValueByCatBody"></tbody>
+                    </table>
+
+                    <h4 style="margin:20px 0 8px">Stock bajo / Agotados</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Producto</th><th>Código</th><th>Categoría</th><th>Stock</th></tr>
+                        </thead>
+                        <tbody id="rpLowStockBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- CADUCIDAD -->
+                <div class="report-content" id="reportExpiryTab" style="display:none">
+                    <div class="reports-grid">
+                        <div class="report-card danger">
+                            <h3>🚨 Caducados</h3>
+                            <div class="report-value" id="rpExpiredCount">0</div>
+                            <div class="report-detail">productos vencidos</div>
+                        </div>
+                        <div class="report-card warning">
+                            <h3>⚠️ Próximos 7 días</h3>
+                            <div class="report-value" id="rpExp7Count">0</div>
+                            <div class="report-detail">lotes</div>
+                        </div>
+                        <div class="report-card">
+                            <h3>📅 Próximos 30 días</h3>
+                            <div class="report-value" id="rpExp30Count">0</div>
+                            <div class="report-detail">lotes</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin:0 0 8px">Listado de lotes</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th><th>Lote</th><th>Caducidad</th>
+                                <th>Existencia</th><th>Días</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rpExpiryBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- MERMAS -->
+                <div class="report-content" id="reportLossesTab" style="display:none">
+                    <div class="reports-grid">
+                        <div class="report-card danger">
+                            <h3>💸 Mermas totales</h3>
+                            <div class="report-value" id="rpLossTotal">$0.00</div>
+                            <div class="report-detail">a precio de costo</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin:0 0 8px">Mermas por producto</h4>
+                    <table class="data-table" style="max-width:600px">
+                        <thead>
+                            <tr><th>Producto</th><th>Unidades perdidas</th><th>Pérdida $</th></tr>
+                        </thead>
+                        <tbody id="rpLossesBody"></tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Cash Section -->
+            <section class="content-section" id="cashSection">
+                <div class="cash-controls">
+                    <button class="btn btn-success" id="openCashBtn" onclick="showOpenCashModal()">
+                    <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Abrir Caja
+                </button>
+                    <button class="btn btn-danger" id="closeCashBtn" onclick="showCloseCashModal()">🔒 Cerrar Caja</button>
+                </div>
+
+                <div class="cash-status" id="cashStatus">
+                    <p>Caja cerrada</p>
+                </div>
+
+                <div class="cash-tabs">
+                    <button class="tab-btn active" onclick="showCashTab('myticket')">🎫 Mi Turno</button>
+                    <button class="tab-btn" onclick="showCashTab('today')">
+                        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l2-4 2 4 3-6 2 6"></path></svg> Corte del Día
+                    </button>
+                    <button class="tab-btn" onclick="showCashTab('all')">
+                        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Todos los Turnos
+                    </button>
+                    <button class="tab-btn" onclick="showCashTab('history')">
+                        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg> Historial
+                    </button>
+                </div>
+
+                <div class="cash-tab-content" id="cashMyticketTab">
+                    <div class="my-shift-card" id="myShiftCard">
+                        <p style="text-align:center; color:#888;">Sin turno activo</p>
+                    </div>
+                </div>
+
+                <div class="cash-tab-content" id="cashTodayTab" style="display:none">
+                    <div class="cash-day-summary" id="cashDaySummary">
+                        <div class="cash-day-stat"><span class="cash-stat-label">Ventas del día</span><span class="cash-stat-value" id="dayTotalSales">$0.00</span></div>
+                        <div class="cash-day-stat"><span class="cash-stat-label">Efectivo</span><span class="cash-stat-value" id="dayTotalCash">$0.00</span></div>
+                        <div class="cash-day-stat"><span class="cash-stat-label">Tarjeta/Mixto</span><span class="cash-stat-value" id="dayTotalCard">$0.00</span></div>
+                        <div class="cash-day-stat"><span class="cash-stat-label">Turnos cerrados</span><span class="cash-stat-value" id="dayClosedShifts">0</span></div>
+                    </div>
+                    <h4 style="margin: 16px 0 8px;">Cortes de hoy</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cajero</th>
+                                <th>Apertura</th>
+                                <th>Cierre</th>
+                                <th>Total</th>
+                                <th>Efectivo</th>
+                                <th>Tarjeta</th>
+                                <th>Esperado</th>
+                                <th>Contado</th>
+                                <th>Dif.</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dayCutsTable">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="cash-tab-content" id="cashAllTab" style="display:none">
+                    <div class="all-shifts-toolbar">
+                        <div class="all-shifts-stats">
+                            <div class="all-stat open"><span class="all-stat-num" id="allOpenCount">0</span><span class="all-stat-lbl">🟢 Abiertos</span></div>
+                            <div class="all-stat closed"><span class="all-stat-num" id="allClosedCount">0</span><span class="all-stat-lbl">🔴 Cerrados</span></div>
+                            <div class="all-stat overdue"><span class="all-stat-num" id="allOverdueCount">0</span><span class="all-stat-lbl">⚠️ Vencidos</span></div>
+                            <div class="all-stat total"><span class="all-stat-num" id="allTotalCount">0</span><span class="all-stat-lbl"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Total</span></div>
+                        </div>
+                        <div class="all-shifts-filters">
+                            <label class="filter-chip"><input type="checkbox" id="allFilterOpen" onchange="applyAllShiftsFilter()"> 🟢 Solo abiertos</label>
+                            <label class="filter-chip"><input type="checkbox" id="allFilterClosed" onchange="applyAllShiftsFilter()"> 🔴 Solo cerrados</label>
+                            <label class="filter-chip"><input type="checkbox" id="allFilterOverdue" onchange="applyAllShiftsFilter()"> ⚠️ Solo vencidos</label>
+                            <input type="date" id="allDateFilter" onchange="applyAllShiftsFilter()" class="date-filter-input" title="Filtrar por fecha">
+                            <button class="btn btn-sm btn-secondary" onclick="clearAllShiftsFilter()">🔄 Limpiar</button>
+                            <button class="btn btn-sm btn-primary" onclick="loadAllShifts()">↻ Recargar</button>
+                        </div>
+                    </div>
+                    <div class="all-shifts-list" id="allShiftsList">
+                        <table class="data-table all-shifts-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Estado</th>
+                                    <th>Cajero</th>
+                                    <th>Apertura (Fecha y Hora)</th>
+                                    <th>Cierre (Fecha y Hora)</th>
+                                    <th>Duración</th>
+                                    <th>Apertura $</th>
+                                    <th>Total Ventas</th>
+                                    <th>Efectivo</th>
+                                    <th>Tarjeta</th>
+                                    <th>Esperado</th>
+                                    <th>Contado</th>
+                                    <th>Dif.</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allShiftsTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="cash-tab-content" id="cashHistoryTab" style="display:none">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Cajero</th>
+                                <th>Total</th>
+                                <th>Efectivo</th>
+                                <th>Tarjeta</th>
+                                <th>Esperado</th>
+                                <th>Contado</th>
+                                <th>Dif.</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cashHistoryTable">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Promotions Section -->
+            <section class="content-section" id="promotionsSection">
+                <div class="section-header">
+                    <h2>Gestión de Promociones</h2>
+                    <button class="btn btn-primary" onclick="showAddPromotionModal()">+ Nueva Promoción</button>
+                </div>
+                
+                <div class="promotions-grid" id="promotionsGrid">
+                    <!-- Promotions loaded dynamically -->
+                </div>
+            </section>
+            
+            <!-- Settings Section -->
+            <section class="content-section" id="settingsSection">
+                <div class="settings-menu" id="settingsMenu">
+                    <!-- Mosaico de opciones dinámico -->
+                </div>
+                
+                <div class="settings-content" id="settingsContent" style="display:none">
+                    <!-- Dynamic content -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Shift Gate (turno de caja) -->
+    <div class="shift-gate" id="shiftGate">
+        <div class="shift-gate-card" id="shiftGateCard">
+            <div class="shift-gate-head">
+                <div>
+                    <h2 id="shiftGateTitle">Turno de caja</h2>
+                    <div class="shift-gate-sub" id="shiftGateSub">Cargando…</div>
+                </div>
+            </div>
+            <div class="shift-gate-body" id="shiftGateBody"></div>
+            <div class="shift-gate-foot" id="shiftGateFoot"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal (F12) -->
+    <div class="payment-overlay" id="paymentOverlay" style="display:none">
+        <div class="payment-modal" id="paymentModal">
+            <div class="payment-header">
+                <h2>COBRAR VENTA</h2>
+                <span class="payment-shortcut">F12</span>
+            </div>
+            <div class="payment-body">
+                <div class="payment-total-display">
+                    <div class="payment-total-label">Total a cobrar</div>
+                    <div class="payment-total-amount" id="paymentTotal">$0.00</div>
+                </div>
+
+                <div class="payment-methods">
+                    <button class="pay-method active" data-method="cash" onclick="selectPayMethod('cash')">
+                        <span class="pay-method-icon"><svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg></span>
+                        <span>Efectivo</span>
+                    </button>
+                    <button class="pay-method" data-method="card" onclick="selectPayMethod('card')">
+                        <span class="pay-method-icon"><svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="2"></rect><path d="M1 10h22"></path></svg></span>
+                        <span>Tarjeta</span>
+                    </button>
+                    <button class="pay-method" data-method="mixed" onclick="selectPayMethod('mixed')">
+                        <span class="pay-method-icon"><svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg></span>
+                        <span>Mixto</span>
+                    </button>
+                </div>
+
+                <div class="payment-inputs">
+                    <div class="pay-input-group" id="payCashGroup">
+                        <label><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg> Efectivo recibido</label>
+                        <input type="text" id="payCashAmount" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="0.00" autocomplete="off" onfocus="this.select()" oninput="calculatePaymentChange()" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPayment();}">
+                    </div>
+                    <div class="pay-input-group" id="payCardGroup" style="display:none">
+                        <label><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="2"></rect><path d="M1 10h22"></path></svg> Monto tarjeta</label>
+                        <input type="text" id="payCardAmount" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="0.00" autocomplete="off" onfocus="this.select()" oninput="calculatePaymentChange()" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPayment();}">
+                    </div>
+                    <div class="pay-summary" id="paySummary" style="display:none">
+                        <div class="pay-summary-row">
+                            <span><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg> Efectivo</span>
+                            <strong id="payCashReadout">$0.00</strong>
+                        </div>
+                        <div class="pay-summary-row">
+                            <span><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="2"></rect><path d="M1 10h22"></path></svg> Tarjeta</span>
+                            <strong id="payCardReadout">$0.00</strong>
+                        </div>
+                        <div class="pay-summary-row pay-summary-accent">
+                            <span>Total recibido</span>
+                            <strong id="payReceived">$0.00</strong>
+                        </div>
+                        <div class="pay-summary-row pay-summary-total">
+                            <span>Total a cobrar</span>
+                            <strong id="payRequired">$0.00</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="payment-missing" id="paymentMissing" style="display:none">
+                    <div class="missing-label">MONTO FALTANTE</div>
+                    <div class="missing-amount" id="paymentMissingAmount">$0.00</div>
+                    <div class="missing-hint">Continúa ingresando efectivo o tarjeta para completar</div>
+                </div>
+
+                <div class="payment-change" id="paymentChangeBox" style="display:none">
+                    <div class="change-label-big">CAMBIO</div>
+                    <div class="change-amount-big" id="paymentChange">$0.00</div>
+                </div>
+
+                <div class="payment-actions">
+                    <button class="btn btn-secondary" onclick="closePaymentModal()">Cancelar (Esc)</button>
+                    <button class="btn btn-success btn-lg" id="confirmPayBtn" onclick="confirmPayment()">✓ CONFIRMAR (Enter)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span id="toastMessage">Mensaje</span>
+    </div>
+
+    <!-- Sales History & Returns Overlay -->
+    <div class="sales-history-overlay" id="salesHistoryOverlay" style="display:none">
+        <div class="sales-history-panel">
+            <div class="sales-history-header">
+                <div class="sales-history-title">
+                    <h2>🧾 Ventas y devoluciones</h2>
+                    <div class="sales-history-sub">Por día y por cajero · Folios · Devoluciones · Cancelaciones</div>
+                </div>
+                <div class="sales-history-header-actions">
+                    <button class="btn btn-secondary btn-sm" id="shRefreshBtn" onclick="refreshSalesHistory()">🔄 Actualizar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="closeSalesHistory()">✕ Cerrar</button>
+                </div>
+            </div>
+            <div class="sales-history-body">
+                <div class="sh-left">
+                    <div class="sh-filters-row">
+                        <div class="sh-filter-group">
+                            <label for="shDayFilter">📅 Día</label>
+                            <select id="shDayFilter" onchange="filterSalesHistory()"></select>
+                        </div>
+                        <div class="sh-filter-group">
+                            <label for="shCashierFilter">👤 Cajero</label>
+                            <select id="shCashierFilter" onchange="filterSalesHistory()">
+                                <option value="">Todos los cajeros</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="sh-search-row">
+                        <input type="text" id="shSearchInput" placeholder="Buscar folio, producto, código, cliente o cajero..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="filterSalesHistory()">
+                        <select id="shStatusFilter" onchange="filterSalesHistory()">
+                            <option value="">Todos</option>
+                            <option value="active">Activas</option>
+                            <option value="partial_return">Devolución parcial</option>
+                            <option value="returned">Devueltas</option>
+                            <option value="cancelled">Canceladas</option>
+                        </select>
+                        <span class="sh-results-count" id="shResultsCount">0 ventas</span>
+                    </div>
+                    <div class="sh-table-wrap">
+                        <table class="data-table sh-table" id="shSalesTable">
+                            <thead>
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Hora</th>
+                                    <th>Cajero</th>
+                                    <th>Método</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shSalesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="sh-right">
+                    <div class="sh-ticket-empty" id="shTicketEmpty">
+                        <div><svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg></div>
+                        <p>Selecciona una venta para ver el detalle del ticket</p>
+                    </div>
+                    <div class="sh-ticket" id="shTicket" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/icons.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

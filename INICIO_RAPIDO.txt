@@ -1,0 +1,23 @@
+# POS-EXPENDIO-BB - Inicio Rápido
+
+## Para iniciar el servidor
+
+```bash
+cd /home/alexis/POS-EXPENDIO-BB/server
+source ../venv/bin/activate
+python app.py
+```
+
+## Para detener el servidor
+
+Presiona `Ctrl+C` en la terminal donde está corriendo.
+
+## Acceder al sistema
+
+- URL: http://localhost:5000
+- Usuario: admin
+- Contraseña: admin123
+
+## Continuar el desarrollo
+
+Lee `./PROGRESO.md` para ver el estado actual y los próximos pasos.
