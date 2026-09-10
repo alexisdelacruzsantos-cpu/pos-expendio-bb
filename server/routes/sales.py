@@ -595,14 +595,14 @@ def get_today_sales():
             SELECT s.*, u.full_name as cashier_full_name
             FROM sales s
             LEFT JOIN users u ON s.cashier_id = u.id
-            WHERE DATE(s.sale_date) = DATE('now', 'localtime')
+            WHERE DATE(s.sale_date) = DATE('now', 'localtime') AND s.status = 'active'
             ORDER BY s.sale_date DESC
         ''')
         
         total = db.fetch_one('''
             SELECT COALESCE(SUM(total), 0) as total
             FROM sales
-            WHERE DATE(sale_date) = DATE('now', 'localtime')
+            WHERE DATE(sale_date) = DATE('now', 'localtime') AND status = 'active'
         ''')
         
         return jsonify({

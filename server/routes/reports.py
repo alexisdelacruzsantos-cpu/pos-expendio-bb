@@ -82,7 +82,7 @@ def sales_summary():
                 SUM(CASE WHEN payment_method = 'cash' THEN total ELSE 0 END) as cash_amount,
                 SUM(CASE WHEN payment_method = 'card' THEN total ELSE 0 END) as card_amount
             FROM sales
-            WHERE 1=1
+            WHERE status = 'active'
         '''
         params = []
         
@@ -98,11 +98,22 @@ def sales_summary():
         
         summary = db.fetch_all(query, params)
         
-        total = db.fetch_one('''
+        total_query = '''
             SELECT COUNT(*) as total_sales, COALESCE(SUM(total), 0) as total_amount
             FROM sales
-            WHERE 1=1
-        ''')
+            WHERE status = 'active'
+        '''
+        total_params = []
+        
+        if date_from:
+            total_query += ' AND sale_date >= ?'
+            total_params.append(date_from)
+        
+        if date_to:
+            total_query += ' AND sale_date <= ?'
+            total_params.append(date_to)
+        
+        total = db.fetch_one(total_query, total_params)
         
         return jsonify({
             'summary': [dict(s) for s in summary],
@@ -128,7 +139,7 @@ def top_products():
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             JOIN products p ON si.product_id = p.id
-            WHERE 1=1
+            WHERE s.status = 'active'
         '''
         params = []
         
@@ -158,9 +169,9 @@ def inventory_value():
         
         value = db.fetch_all('''
             SELECT p.name, p.barcode, 
-                   COALESCE(SUM(l.current_quantity), 0) as quantity,
+                   (COALESCE(SUM(l.current_quantity), 0) + COALESCE(p.stock, 0)) as quantity,
                    p.cost,
-                   (COALESCE(SUM(l.current_quantity), 0) * p.cost) as total_value
+                   ((COALESCE(SUM(l.current_quantity), 0) + COALESCE(p.stock, 0)) * p.cost) as total_value
             FROM products p
             LEFT JOIN lots l ON p.id = l.product_id AND l.current_quantity > 0
             WHERE p.active = 1
@@ -169,7 +180,7 @@ def inventory_value():
         ''')
         
         total = db.fetch_one('''
-            SELECT COALESCE(SUM(p.cost * COALESCE(l.current_quantity, 0)), 0) as total_value
+            SELECT COALESCE(SUM((COALESCE(p.stock, 0) + COALESCE(l.current_quantity, 0)) * COALESCE(p.cost, 0)), 0) as total_value
             FROM products p
             LEFT JOIN lots l ON p.id = l.product_id AND l.current_quantity > 0
             WHERE p.active = 1
@@ -197,6 +208,7 @@ def top_selling():
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             JOIN products p ON si.product_id = p.id
+            WHERE s.status = 'active'
             GROUP BY p.id
             ORDER BY total_qty DESC
             LIMIT ?
@@ -255,15 +267,20 @@ def value_by_category():
 
         cats = db.fetch_all('''
             SELECT COALESCE(c.name, 'Sin categoría') as category_name,
-                   COALESCE(c.id, 0) as category_id,
-                   COALESCE(SUM(l.current_quantity * p.cost), 0) as value,
-                   COUNT(DISTINCT p.id) as product_count,
-                   COALESCE(SUM(l.current_quantity), 0) as total_units
-            FROM products p
-            LEFT JOIN categories c ON p.category_id = c.id
-            LEFT JOIN lots l ON p.id = l.product_id AND l.current_quantity > 0
-            WHERE p.active = 1
-            GROUP BY c.id
+                   COALESCE(sub.category_id, 0) as category_id,
+                   COALESCE(SUM(sub.effective_stock * sub.cost), 0) as value,
+                   COUNT(sub.id) as product_count,
+                   COALESCE(SUM(sub.effective_stock), 0) as total_units
+            FROM (
+                SELECT p.id, p.category_id, COALESCE(p.cost, 0) as cost,
+                       (COALESCE(SUM(l.current_quantity), 0) + COALESCE(p.stock, 0)) as effective_stock
+                FROM products p
+                LEFT JOIN lots l ON p.id = l.product_id AND l.current_quantity > 0
+                WHERE p.active = 1
+                GROUP BY p.id
+            ) sub
+            LEFT JOIN categories c ON sub.category_id = c.id
+            GROUP BY sub.category_id
             ORDER BY value DESC
         ''')
 
@@ -336,7 +353,7 @@ def sales_report():
         date_to = request.args.get('date_to')
         limit = int(request.args.get('limit', 10))
 
-        where = ' WHERE 1=1'
+        where = ' WHERE s.status = \'active\''
         params = []
         if date_from:
             where += ' AND DATE(sale_date) >= ?'
