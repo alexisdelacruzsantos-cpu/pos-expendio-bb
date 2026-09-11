@@ -597,6 +597,65 @@ class App:
 
 
 def main():
+    # Modo automatico (headless, para pruebas): ejecuta todos los pasos sin GUI.
+    # No exige elevacion (igual que antes, step_task fallara sin permisos).
+    if "--auto" in sys.argv:
+        import traceback
+        log_path = os.path.join("C:\\POS", "pos", "logs", "instalador_auto.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+        def plog(msg):
+            try:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
+            except Exception:
+                pass
+            try:
+                print(msg, flush=True)
+            except Exception:
+                pass
+
+        try:
+            inst = Installer(
+                dest=DEFAULT_DEST,
+                auto_logon=False,
+                user="",
+                domain="",
+                pwd="",
+                use_firefox="--wf" in sys.argv,
+            )
+            steps = [
+                ("UCRT / VC++ Redistributable", inst.step_ucrt),
+                ("Python 3.9", inst.step_python),
+                ("Repositorio", inst.step_repo),
+                ("venv + dependencias (offline)", inst.step_venv),
+                ("Firefox", inst.step_firefox),
+                ("Auto-logon", inst.step_autologon),
+                ("ONLOGON (arranque automatico)", inst.step_task),
+                ("Verificacion (health + login)", inst.step_verify),
+            ]
+            ok_all = True
+            critical = {0, 1, 2, 3}  # UCRT, Python, Repo, venv
+            for i, (label, fn) in enumerate(steps, start=1):
+                plog("[{}/{}] {}".format(i, len(steps), label))
+                try:
+                    ok, msg = fn()
+                except Exception as e:
+                    ok, msg = False, "Excepcion: {}".format(e)
+                    plog(traceback.format_exc())
+                plog("    -> {}".format(msg))
+                if not ok:
+                    if i - 1 in critical:
+                        ok_all = False
+                        plog("    !! PASO CRITICO FALLIDO")
+                        break
+                    plog("    -- paso no-critico fallido, se continua --")
+            plog("RESULTADO: {}".format("OK" if ok_all else "FALLIDO"))
+        except Exception as e:
+            plog("EXCEPCION GLOBAL: {}\n{}".format(e, traceback.format_exc()))
+            ok_all = False
+        sys.exit(0 if ok_all else 1)
+
     root = tk.Tk()
     App(root)
     root.mainloop()
