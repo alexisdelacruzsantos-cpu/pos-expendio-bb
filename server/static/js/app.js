@@ -7652,6 +7652,7 @@ async function loadUpdatesSettings() {
         <div class="maintenance-card">
             <p class="maintenance-desc">Busca e instala la última versión del sistema publicada en GitHub. La actualización <strong>no borra tus ventas ni tu catálogo</strong>: se toma un respaldo automático antes de aplicar.</p>
             <p class="maintenance-note">Este módulo requiere conexión a internet. El resto del sistema funciona 100% sin conexión.</p>
+            <p class="maintenance-note">Al aplicar se reinicia el sistema automáticamente; tus datos permanecen intactos.</p>
             ${statusHtml}
             <div id="updatesResult"></div>
         </div>
