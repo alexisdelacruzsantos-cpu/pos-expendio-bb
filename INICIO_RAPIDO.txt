@@ -19,9 +19,15 @@ Presiona `Ctrl+C` en la terminal donde está corriendo (hace checkpoint del WAL 
 ## Producción en tienda (Windows 8.1/10/11)
 
 ### Instalación (una sola vez, como Administrador)
-1. Instala Python (https://www.python.org/downloads/) marcando **"Add Python to PATH"**.
+
+**Opción A - Automática (recomendada para Windows 8.1 sin Git/Python):**
+1. Copia `server\instalar_vm.bat` y `server\instalar_vm.ps1` a una carpeta limpia y vacía del equipo (ej. `C:\POS`) **dentro del mismo VM**.
+2. Haz doble clic en `instalar_vm.bat` con clic derecho > **"Ejecutar como administrador"**.
+3. Te pedirá un GitHub **Personal Access Token** (Settings > Developer settings > Tokens, con lectura del repo privado). No es necesario instalar nada a mano: descarga Python 3.9.13 + Git 2.46.2, clona el repo, instala el venv y registra el arranque automático.
+
+**Opción B - Manual:**
+1. Instala Python (https://www.python.org/downloads/) marcando **"Add Python to PATH"** (en Windows 8.1 usa la 3.9.13).
 2. Ejecuta `server\instalar_servidor.bat` con clic derecho > **"Ejecutar como administrador"**.
-   - Crea el entorno virtual, instala dependencias (incluye `waitress`) y registra el arranque automático al iniciar sesión.
 
 ### Iniciar / detener manualmente
 - **Iniciar:** doble clic en `server\start_pos.bat` (abre el navegador solo).

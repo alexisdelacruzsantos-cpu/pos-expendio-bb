@@ -17,6 +17,22 @@ Sistema de Punto de Venta para Expendio de Pan Bimbo y Productos Barcel
 
 ## Instalación y Ejecución
 
+### 0. Instalación automática en Windows 8.1/10/11 (tienda)
+
+Si el equipo de la tienda tiene Windows 8.1 (Internet Explorer viejo, sin Git ni Python), copiar al equipo:
+
+- `server/instalar_vm.bat` y `server/instalar_vm.ps1` (los dos, en una carpeta limpia vacía)
+
+y hacer doble clic en `instalar_vm.bat` (idealmente "Ejecutar como administrador"). El script:
+
+1. Fuerza TLS 1.2 y descarga Python 3.9.13 + Git 2.46.2 (último compatible con 8.1).
+2. Los instala en silencio.
+3. Pide un GitHub **Personal Access Token** (con permiso de lectura del repo privado).
+4. Clona el repo, crea el venv, instala dependencias (Flask, waitress, JWT).
+5. Registra el arranque automático "POS Expendio BB" al iniciar sesión.
+
+Después solo hay que hacer doble clic en `server/start_pos.bat` y entrar a `http://127.0.0.1:5000`.
+
 ### 1. Clonar este repositorio
 
 ```bash
