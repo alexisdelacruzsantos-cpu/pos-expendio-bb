@@ -160,10 +160,18 @@ if ((-not (Test-Command 'git')) -or (-not (Test-Path $PYTHON_DIR))) {
 
 $token = $null
 if (-not (Test-Path (Join-Path $DEST '.git'))) {
-    $secure = Read-Host 'Pega tu GitHub Personal Access Token (con permiso de lectura del repo) y pulsa Enter' -AsSecureString
-    $token  = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-    )
+    Write-Host ''
+    Write-Host 'IMPORTANTE - como pegar el token en esta ventana:'
+    Write-Host '  - Haz CLIC DERECHO sobre la ventana para pegar (o Ctrl+Shift+V).'
+    Write-Host '  - En Windows 8.1 el Ctrl+V normal NO pega en la consola.'
+    Write-Host ''
+    while (-not $token) {
+        $token = Read-Host 'Pega tu GitHub Personal Access Token (empieza con "github_pat_" o "ghp_") y pulsa Enter'
+        $token = $token.Trim()
+        if (-not $token) {
+            Write-Host 'No se pego nada. Reintenta.' -ForegroundColor Yellow
+        }
+    }
 }
 
 Write-Step '1/6 - Python'
