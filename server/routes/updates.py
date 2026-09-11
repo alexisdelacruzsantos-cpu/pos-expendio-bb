@@ -123,8 +123,12 @@ def _restart_bat():
         'taskkill /PID {} /T /F >nul 2>&1\r\n'.format(os.getpid()),
         'cd /d "{}"\r\n'.format(root),
         'del "{}" >nul 2>&1\r\n'.format(flag),
-        'del "{}" >nul 2>&1\r\n'.format(bat_path),
         'if exist "{}" start "POS-RELAUNCH" /min "{}"\r\n'.format(launcher, launcher),
+        # cmd.exe mantiene abierto el handle del bat mientras lo ejecuta, asi que
+        # no puede borrarse a si mismo. Se lanza un cmd desacoplado que espera
+        # mas que la vida de este bat y luego lo borra. (Sin espacios en la ruta,
+        # asi que no necesita comillas internas.)
+        'start "" /min cmd /c "ping -n 8 127.0.0.1 >nul & del /f /q {}"\r\n'.format(bat_path),
         'exit\r\n',
     ]
     with open(bat_path, 'w', encoding='utf-8') as f:
