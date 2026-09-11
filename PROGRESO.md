@@ -8,7 +8,12 @@
 
 ---
 
-## ESTADO ACTUAL: FASE 5 COMPLETADA + POS UI REDISEÑADA + INVENTARIO ✓
+## ESTADO ACTUAL: FASE 5 COMPLETADA + UI REDISEÑADA + INVENTARIO + DESPLIEGUE WINDOWS 8.1 ✓
+
+> **Despliegue en tienda (Windows 8.1):** servidor waitress funcionando, auto-logon y
+> arranque automático "POS Expendio BB". Ver **`NOTAS_DESPLIEGUE.md`** para los 7
+> errores reales encontrados y sus soluciones (UCRT, wheels para Py 3.9, openpyxl,
+> Firefox, UAC en schtasks, launcher silencioso, auto-logon).
 
 ### Lo que funciona hasta ahora:
 

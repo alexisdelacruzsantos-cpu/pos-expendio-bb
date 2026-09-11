@@ -33,6 +33,11 @@ y hacer doble clic en `instalar_vm.bat` (idealmente "Ejecutar como administrador
 
 Después solo hay que hacer doble clic en `server/start_pos.bat` y entrar a `http://127.0.0.1:5000`.
 
+> **¿Problemas al instalar en Windows 8.1?** Consulta `NOTAS_DESPLIEGUE.md` — documenta
+> los errores reales encontrados (UCRT que falla en Python, dependencias que piden
+> Python 3.10, IE11 sin soporte del login → instalar Firefox 115 ESR, permisos UAC
+> en el arranque automático, etc.) con sus soluciones.
+
 ### 1. Clonar este repositorio
 
 ```bash
