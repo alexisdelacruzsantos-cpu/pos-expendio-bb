@@ -20,7 +20,7 @@ from utils.permissions import require_permission
 updates_bp = Blueprint('updates', __name__)
 
 _UA = "SPA-POS-EXPENDIO-BB/1.0"
-_RAW_VERSION_URL = "https://raw.githubusercontent.com/{owner}/{repo}/{branch}/server/config.py"
+_RAW_VERSION_URL = "https://api.github.com/repos/{owner}/{repo}/contents/server/config.py?ref={branch}"
 _COMMITS_URL = "https://api.github.com/repos/{owner}/{repo}/commits?sha={branch}&per_page=30"
 _ZIPBALL_URL = "https://api.github.com/repos/{owner}/{repo}/zipball/{branch}"
 
@@ -61,14 +61,6 @@ def _parse_app_version(py_text):
     return m.group(1) if m else None
 
 
-def _repo_is_reachable():
-    status, _ = _read_or_request(
-        _COMMITS_URL.format(owner=GITHUB_OWNER, repo=GITHUB_REPO, branch=GITHUB_BRANCH),
-        timeout=15,
-    )
-    return status is not None
-
-
 def _read_local_sha():
     try:
         p = _sha_path()
@@ -78,6 +70,45 @@ def _read_local_sha():
     except Exception:
         pass
     return None
+
+
+def _merge_update(src_root, project_root):
+    """Copia el contenido de src_root sobre project_root respetando carpetas protegidas.
+
+    Nunca se tocan la base de datos (server/static/data), backups, exportaciones,
+    el venv ni los secretos locales. El zipball no las contiene (están en .gitignore)
+    pero se protegen igualmente por robustez ante cambios de .gitignore a futuro.
+    """
+    PROTECTED = {'static/data', 'data', 'venv', 'backup', 'exports'}
+
+    def _make_ignore(src_base):
+        def ignore_func(cur, names):
+            skipped = []
+            for n in names:
+                rel = os.path.relpath(os.path.join(cur, n), src_base).replace('\\', '/')
+                rel_parts = rel.split('/')
+                # matchea si CUALQUIER sufijo del path coincide con un directorio protegido
+                if any('/'.join(rel_parts[i:]) in PROTECTED for i in range(len(rel_parts))):
+                    print('[update] saltando protegido:', rel)
+                    skipped.append(n)
+            return skipped
+        return ignore_func
+
+    for item in os.listdir(src_root):
+        if any(item == p or item.startswith(p + '/') for p in PROTECTED):
+            print('[update] saltando protegido:', item)
+            continue
+        src = os.path.join(src_root, item)
+        dst = os.path.join(project_root, item)
+        if os.path.isdir(src):
+            if not os.path.exists(dst):
+                ext = shutil.copy2
+                shutil.copytree(src, dst, ignore=_make_ignore(src_root))
+            else:
+                shutil.copytree(src, dst, dirs_exist_ok=True, ignore=_make_ignore(src_root))
+        else:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
 
 
 def _restart_bat():
@@ -124,7 +155,7 @@ def check():
     status_code, body = _read_or_request(
         _RAW_VERSION_URL.format(owner=GITHUB_OWNER, repo=GITHUB_REPO, branch=GITHUB_BRANCH),
         timeout=30,
-        accept='text/plain',
+        accept='application/vnd.github+json',
     )
     if status_code is None:
         return jsonify({
@@ -137,7 +168,15 @@ def check():
             'error': 'GitHub respondió HTTP {}. Verifica el repositorio y la rama.'.format(status_code),
         }), 502
 
-    remote_version = _parse_app_version(body.decode('utf-8') if isinstance(body, bytes) else body)
+    remote_version = None
+    if isinstance(body, dict):
+        try:
+            import base64
+            remote_version = _parse_app_version(
+                base64.b64decode(body.get('content', '')).decode('utf-8')
+            )
+        except Exception:
+            remote_version = None
 
     _, commits = _read_or_request(
         _COMMITS_URL.format(owner=GITHUB_OWNER, repo=GITHUB_REPO, branch=GITHUB_BRANCH),
@@ -222,30 +261,7 @@ def apply():
         # 4) Copiar el código sobre el proyecto.
         #    El zipball solo contiene archivos versionados (la BD, pos/, CATALOGO.xlsx,
         #    .jwt_secret y venv están en .gitignore) por lo que nunca se pisan.
-        skip = {'static/data', 'data', 'venv', 'backup', 'exports'}
-        for item in os.listdir(top):
-            if item in skip:
-                continue
-            src = os.path.join(top, item)
-            dst = os.path.join(root, item)
-            if os.path.isdir(src) and not os.path.exists(dst):
-                shutil.copytree(src, dst)
-            elif os.path.isdir(src):
-                # Ya existe: mezcla recursiva sin borrar archivos ausentes
-                for sub in os.listdir(src):
-                    ssub = os.path.join(src, sub)
-                    dsub = os.path.join(dst, sub)
-                    if os.path.isdir(ssub):
-                        if not os.path.exists(dsub):
-                            shutil.copytree(ssub, dsub)
-                        else:
-                            shutil.copytree(ssub, dsub, dirs_exist_ok=True)
-                    else:
-                        os.makedirs(os.path.dirname(dsub), exist_ok=True)
-                        shutil.copy2(ssub, dsub)
-            else:
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.copy2(src, dst)
+        _merge_update(top, root)
 
         # 5) Registrar el SHA descargado
         head_sha = None
