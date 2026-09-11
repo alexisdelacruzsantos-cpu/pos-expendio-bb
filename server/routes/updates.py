@@ -124,7 +124,7 @@ def _restart_bat():
         'cd /d "{}"\r\n'.format(root),
         'del "{}" >nul 2>&1\r\n'.format(flag),
         'del "{}" >nul 2>&1\r\n'.format(bat_path),
-        'if exist "{}" start "" /b "{}"\r\n'.format(launcher, launcher),
+        'if exist "{}" start "POS-RELAUNCH" /min "{}"\r\n'.format(launcher, launcher),
         'exit\r\n',
     ]
     with open(bat_path, 'w', encoding='utf-8') as f:
