@@ -7678,10 +7678,11 @@ async function checkUpdates() {
             return;
         }
         if (!res.update_disponible) {
+            const head = res.head_sha ? res.head_sha.slice(0, 7) : '';
             result.innerHTML = `
                 <div class="updates-result">
                     <p class="update-note">✅ Ya tienes la última versión (${escapeHtml(res.version_actual)}).</p>
-                    <p class="maintenance-note">No hay cambios por aplicar.</p>
+                    <p class="maintenance-note">Última publicación en GitHub: <code>${escapeHtml(head)}</code>. No hay cambios por aplicar.</p>
                 </div>
             `;
             return;
