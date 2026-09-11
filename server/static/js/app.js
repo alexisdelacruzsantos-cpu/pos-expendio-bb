@@ -213,7 +213,7 @@ function setupGlobalKeys() {
         }
 
         if (isPayInput) {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' || e.key === 'F2') {
                 e.preventDefault();
                 confirmPayment();
                 return;
@@ -7340,6 +7340,7 @@ const SETTINGS_MODULES = [
     { key: 'purge', icon: '🧹', title: 'Depurar ventas', desc: 'Borra tickets, devoluciones e historial' },
     { key: 'resetstock', icon: '📦', title: 'Poner stock en 0', desc: 'Limpia el stock general de todos los productos' },
     { key: 'purgecatalog', icon: '🗑', title: 'Vaciar catálogo', desc: 'Elimina productos y categorías para reimportar' },
+    { key: 'updates', icon: '🔄', title: 'Actualizaciones', desc: 'Busca e instala la última versión desde GitHub' },
     // Módulos futuros: agrega un bloque como los anteriores
     // { key: 'backup',   icon: '💾', title: 'Respaldo',   desc: 'Backup y restauración de la base de datos' },
     // { key: 'printer',  icon: '🖨', title: 'Impresora',  desc: 'Configuración de tickets e impresión' },
@@ -7402,6 +7403,9 @@ function showSettingsTab(tab) {
             break;
         case 'purgecatalog':
             loadPurgeCatalogSettings();
+            break;
+        case 'updates':
+            loadUpdatesSettings();
             break;
     }
 }
@@ -7621,6 +7625,103 @@ function confirmPurgeCatalog() {
                 showToast(`Catálogo vaciado: ${res.deleted.products} productos, ${res.deleted.categories} categorías (respaldo: ${res.backup})`, 'success');
             } catch (error) {
                 showToast('Error al vaciar catálogo: ' + error.message, 'error');
+            }
+        }
+    });
+}
+
+async function loadUpdatesSettings() {
+    const content = document.getElementById('settingsContent');
+    let statusHtml = '';
+    try {
+        const status = await apiCall('/updates/status');
+        statusHtml = `
+            <div class="updates-info">
+                <p><strong>Versión instalada:</strong> ${escapeHtml(status.version || '-')}</p>
+                <p><strong>Commit local:</strong> <code>${escapeHtml(status.sha ? status.sha.slice(0, 7) : 'sin registro')}</code></p>
+            </div>
+        `;
+    } catch (_) {}
+
+    content.innerHTML = `
+        ${settingsBackBar()}
+        <div class="section-header">
+            <h3>🔄 Actualizaciones</h3>
+            <button class="btn btn-primary" onclick="checkUpdates()">🔍 Buscar actualizaciones</button>
+        </div>
+        <div class="maintenance-card">
+            <p class="maintenance-desc">Busca e instala la última versión del sistema publicada en GitHub. La actualización <strong>no borra tus ventas ni tu catálogo</strong>: se toma un respaldo automático antes de aplicar.</p>
+            <p class="maintenance-note">Este módulo requiere conexión a internet. El resto del sistema funciona 100% sin conexión.</p>
+            ${statusHtml}
+            <div id="updatesResult"></div>
+        </div>
+    `;
+}
+
+async function checkUpdates() {
+    const result = document.getElementById('updatesResult');
+    if (!result) return;
+    result.innerHTML = '<p class="maintenance-note" style="margin-top:8px">Consultando GitHub…</p>';
+    try {
+        const res = await apiCall('/updates/check', 'POST');
+        if (!res.online) {
+            result.innerHTML = `
+                <div class="updates-result">
+                    <p class="update-error">⚠️ ${escapeHtml(res.error || 'Sin conexión a internet')}</p>
+                    <p class="maintenance-note">Verifica que el equipo tenga internet y vuelve a intentarlo.</p>
+                </div>
+            `;
+            return;
+        }
+        if (res.error) {
+            result.innerHTML = `<p class="update-error">⚠️ ${escapeHtml(res.error)}</p>`;
+            return;
+        }
+        if (!res.update_disponible) {
+            result.innerHTML = `
+                <div class="updates-result">
+                    <p class="update-note">✅ Ya tienes la última versión (${escapeHtml(res.version_actual)}).</p>
+                    <p class="maintenance-note">No hay cambios por aplicar.</p>
+                </div>
+            `;
+            return;
+        }
+        const changelog = (res.changelog || []).map(c =>
+            `<tr><td><code>${escapeHtml(c.sha)}</code></td><td>${escapeHtml(c.message)}</td></tr>`
+        ).join('');
+        result.innerHTML = `
+            <div class="updates-result">
+                <p class="update-note">⬆️ Hay una versión nueva: <strong>${escapeHtml(res.version_actual)}</strong> → <strong>${escapeHtml(res.version_remota)}</strong></p>
+                <table class="data-table">
+                    <thead><tr><th>Commit</th><th>Cambios</th></tr></thead>
+                    <tbody>${changelog}</tbody>
+                </table>
+                <button class="btn btn-danger maintenance-btn" onclick="applyUpdates()">⬇️ Aplicar actualización</button>
+            </div>
+        `;
+    } catch (error) {
+        result.innerHTML = `<p class="update-error">⚠️ Error: ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function applyUpdates() {
+    showConfirmDialog({
+        title: '⬇️ Aplicar actualización',
+        message: 'Se descargará la última versión, se hará un respaldo de tus ventas y el sistema se reiniciará automáticamente. ¿Deseas continuar?',
+        confirmText: 'Sí, actualizar',
+        cancelText: 'Cancelar',
+        danger: true,
+        onConfirm: async () => {
+            try {
+                showToast('Descargando e instalando…', 'info');
+                const res = await apiCall('/updates/apply', 'POST');
+                showToast(res.message || 'Actualización aplicada, reiniciando…', 'success');
+                setTimeout(() => {
+                    localStorage.setItem('pos_was_updated', '1');
+                    location.reload();
+                }, 4000);
+            } catch (error) {
+                showToast('Error al actualizar: ' + error.message, 'error');
             }
         }
     });

@@ -18,6 +18,11 @@ pos/exports/
 # Secreto JWT local
 pos/.jwt_secret
 
+# Estado de actualizaciones (versión/SHA instalada y marca reentrada)
+pos/.current_sha
+pos/.updating
+pos/.restart.bat
+
 # Datos de negocio
 CATALOGO.xlsx
 *.xlsx

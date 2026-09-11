@@ -260,7 +260,7 @@
                                 </button>
                                 <div class="pos-total-card" id="posTotalCard" role="button" tabindex="0" onclick="openPaymentModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPaymentModal();}">
                                     <div class="pos-total-big" id="posTotal">$0.00</div>
-                                    <div class="pos-total-hint">Click o F12 para cobrar</div>
+                                    <div class="pos-total-hint">Click, F12 o F2 para cobrar</div>
                                 </div>
                             </div>
                         </div>
@@ -1102,7 +1102,7 @@
         <div class="payment-modal" id="paymentModal">
             <div class="payment-header">
                 <h2>COBRAR VENTA</h2>
-                <span class="payment-shortcut">F12</span>
+                <span class="payment-shortcut">F12 / F2</span>
             </div>
             <div class="payment-body">
                 <div class="payment-total-display">
@@ -1167,7 +1167,7 @@
 
                 <div class="payment-actions">
                     <button class="btn btn-secondary" onclick="closePaymentModal()">Cancelar (Esc)</button>
-                    <button class="btn btn-success btn-lg" id="confirmPayBtn" onclick="confirmPayment()">✓ CONFIRMAR (Enter)</button>
+                    <button class="btn btn-success btn-lg" id="confirmPayBtn" onclick="confirmPayment()">✓ CONFIRMAR (Enter / F2)</button>
                 </div>
             </div>
         </div>

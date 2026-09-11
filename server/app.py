@@ -76,6 +76,7 @@ from routes.lots import lots_bp
 from routes.imports import imports_bp
 from routes.adjustments import adjustments_bp
 from routes.maintenance import maintenance_bp
+from routes.updates import updates_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -88,6 +89,7 @@ app.register_blueprint(lots_bp, url_prefix='/api/lots')
 app.register_blueprint(imports_bp, url_prefix='/api/imports')
 app.register_blueprint(adjustments_bp, url_prefix='/api/adjustments')
 app.register_blueprint(maintenance_bp, url_prefix='/api/maintenance')
+app.register_blueprint(updates_bp, url_prefix='/api/updates')
 
 
 # ---------------------------------------------------------------------------
