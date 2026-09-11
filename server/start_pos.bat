@@ -1,34 +1,36 @@
 @echo off
-echo ===================================
-echo POS EXPENDIO BB - Iniciando
-echo ===================================
-
+REM ===================================
+REM  POS EXPENDIO BB - Inicio
+REM  Ejecutar siempre desde esta carpeta.
+REM  No requiere Python en el PATH si el venv ya existe.
+REM ===================================
+setlocal
 cd /d "%~dp0"
+title POS EXPENDIO BB
 
-if not exist "..\venv" (
-    echo Creando entorno virtual...
-    python -m venv ..\venv
-    call ..\venv\Scripts\activate
-    pip install -r requirements.txt
-) else (
-    call ..\venv\Scripts\activate
+if not exist "..\venv\Scripts\python.exe" (
+    echo [POS] Entorno virtual no encontrado. Revisa el README o ejecuta instalar_servidor.bat
+    pause
+    exit /b 1
 )
 
-echo.
-echo Iniciando servidor POS...
-echo URL: http://localhost:5000
-echo.
-echo Para abrir la interfaz, navega a:
-echo http://localhost:5000
-echo.
-echo Credenciales por defecto:
-echo   Admin:      admin / admin123
-echo   Supervisor:  supervisor / super123
-echo   Cajero:      cajero / cajero123
-echo.
-echo Presiona Ctrl+C para detener el servidor
+set "LOG=..\pos\logs\servidor.log"
+if not exist "..\pos\logs" mkdir "..\pos\logs"
+
 echo ===================================
+echo  POS EXPENDIO BB - Servidor principal
+echo ===================================
+echo  URL:  http://localhost:5000
+echo  Log:  %LOG%
+echo  Cierra esta ventana o presiona Ctrl+C para detener.
+echo ===================================
+echo.
 
-python app.py
+REM Abre el navegador en cuanto el servidor apunte
+start "" /b cmd /c "ping -n 3 127.0.0.1 >nul & start http://127.0.0.1:5000"
 
+"..\venv\Scripts\python.exe" app.py 1>>"%LOG%" 2>&1
+
+echo.
+echo Servidor detenido.
 pause

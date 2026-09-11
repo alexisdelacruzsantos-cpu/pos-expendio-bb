@@ -140,9 +140,13 @@ def catch_all(path):
 from utils.backup import create_backup
 
 
+_BACKUP_BASE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pos', 'backup'
+)
+
+
 def _backup_dir():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, 'pos', 'backup')
+    return _BACKUP_BASE
 
 
 def _autobackup():
@@ -224,4 +228,22 @@ if __name__ == '__main__':
     threading.Timer(1, _autobackup).start()
 
     port = int(os.environ.get('PORT', '5000'))
-    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+    host = os.environ.get('HOST', '0.0.0.0')
+
+    # Servidor de producción: waitress (estable en Windows), con respaldo a Werkzeug dev
+    _use_waitress = os.environ.get('WSGI', '').lower() not in ('werkzeug', 'dev')
+    _waitress_msg = ''
+    try:
+        from waitress import serve as _waitress_serve
+        _waitress_msg = '  (waitress)'
+    except ImportError:
+        _waitress_msg = ''
+        _use_waitress = False
+
+    print(f"URL: http://localhost:{port}")
+    if _use_waitress:
+        print(f"Sirviendo con waitress{_waitress_msg} en {host}:{port} (Ctrl+C para detener)")
+        _waitress_serve(app, host=host, port=port, threads=8, channel_timeout=120)
+    else:
+        print(f"Sirviendo con Werkzeug dev server en {host}:{port} (Ctrl+C para detener)")
+        app.run(host=host, port=port, debug=False, threaded=True)

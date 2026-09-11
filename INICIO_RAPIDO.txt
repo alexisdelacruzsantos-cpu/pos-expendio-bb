@@ -1,23 +1,40 @@
 # POS-EXPENDIO-BB - Inicio Rápido
 
-## Para iniciar el servidor
+## Entorno de desarrollo (Linux)
 
+### Para iniciar el servidor
 ```bash
 cd /home/alexis/POS-EXPENDIO-BB/server
 source ../venv/bin/activate
 python app.py
 ```
 
-## Para detener el servidor
+### Para detener el servidor
+Presiona `Ctrl+C` en la terminal donde está corriendo (hace checkpoint del WAL y un respaldo final automático en `pos/backup/`).
 
-Presiona `Ctrl+C` en la terminal donde está corriendo.
-
-## Acceder al sistema
-
+### Acceder al sistema
 - URL: http://localhost:5000
-- Usuario: admin
-- Contraseña: admin123
+- Inicia sesión con tu usuario y contraseña (admin, cajero o supervisor).
+
+## Producción en tienda (Windows 8.1/10/11)
+
+### Instalación (una sola vez, como Administrador)
+1. Instala Python (https://www.python.org/downloads/) marcando **"Add Python to PATH"**.
+2. Ejecuta `server\instalar_servidor.bat` con clic derecho > **"Ejecutar como administrador"**.
+   - Crea el entorno virtual, instala dependencias (incluye `waitress`) y registra el arranque automático al iniciar sesión.
+
+### Iniciar / detener manualmente
+- **Iniciar:** doble clic en `server\start_pos.bat` (abre el navegador solo).
+- **Detener:** cerrar la ventana o presionar `Ctrl+C` (hace checkpoint + respaldo final).
+
+### Arranque automático
+- Al instalar con `instalar_servidor.bat` queda registrado como tarea de Windows **"POS Expendio BB"** que arranca el servidor al iniciar sesión.
+- Para quitarlo: `server\quitar_autoinicio.bat` (como Administrador).
+
+### Notas de operación
+- El servidor usa **waitress** (WSGI de producción, estable). Para forzar el servidor de desarrollo: `set WSGI=dev` antes de iniciar.
+- URL por defecto: http://localhost:5000 (aplicar el mismo puerto en el firewall si se usará desde otras PCs).
+- Logs: `pos\logs\servidor.log`. Respaldo automático al arrancar y cada 24 h: `pos\backup\`.
 
 ## Continuar el desarrollo
-
 Lee `./PROGRESO.md` para ver el estado actual y los próximos pasos.
