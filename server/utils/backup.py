@@ -38,7 +38,7 @@ def create_backup(db_path, backup_dir, prefix='pos_backup_', keep=30):
         finally:
             dst.close()
             src.close()
-        print(f"✓ Respaldo creado exitosamente: {backup_path}")
+        print(f"[OK] Respaldo creado: {backup_path}")
 
         # Mantener solo los últimos `keep` respaldos (rotación)
         backups = sorted([f for f in os.listdir(backup_dir)
@@ -78,7 +78,7 @@ def restore_backup(backup_path, db_path):
         finally:
             dst.close()
             src.close()
-        print(f"✓ Base de datos restaurada desde: {backup_path}")
+        print(f"[OK] Base de datos restaurada desde: {backup_path}")
         return True
     
     except Exception as e:
