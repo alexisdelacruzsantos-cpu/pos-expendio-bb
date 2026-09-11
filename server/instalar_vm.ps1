@@ -47,12 +47,22 @@ function Get-RefreshPath {
 }
 
 function Find-Python {
-    $candidates = @($PYTHON_DIR)
-    if (Test-Command 'python') { $candidates += 'python' }
-    foreach ($cand in $candidates) {
+    $paths = @()
+    $paths += $PYTHON_DIR
+    $paths += (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python39\python.exe')
+    $paths += 'C:\Python39\python.exe'
+    $roots = @((Join-Path $env:ProgramFiles 'Python3*'),
+               (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python3*'))
+    foreach ($root in $roots) {
+        Get-Item $root -ErrorAction SilentlyContinue | ForEach-Object {
+            $paths += (Join-Path $_.FullName 'python.exe')
+        }
+    }
+    if (Test-Command 'python') { $paths += 'python' }
+    foreach ($cand in @($paths | Select-Object -Unique)) {
         try {
-            $null = & $cand --version 2>$null
-            return $cand
+            $v = & $cand --version 2>$null
+            if ($LASTEXITCODE -eq 0 -and $v) { return $cand }
         } catch { }
     }
     return $null
@@ -64,12 +74,22 @@ function Install-Python {
     } else {
         Write-Host 'El instalador de Python ya esta descargado, se reutiliza.'
     }
-    Write-Host 'Instalando Python 3.9.13 en silencio (Instalar para todos los usuarios)...'
+    Write-Host 'Instalando Python 3.9.13 en silencio (por usuario, ruta fija)...'
     Start-Process -FilePath $PYTHON_EXE -ArgumentList @(
-        '/quiet', 'InstallAllUsers=1', 'PrependPath=1',
+        '/quiet', 'InstallAllUsers=0', 'PrependPath=1',
         'Include_launcher=1', 'Include_test=0', 'Shortcuts=0'
     ) -Wait
     Get-RefreshPath
+    # El instalador se relanza en un proceso hijo; confirmar que python.exe existe.
+    $found = $null
+    for ($i = 1; $i -le 20; $i++) {
+        $found = Find-Python
+        if ($found) { break }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $found) {
+        throw 'No se detecto python.exe tras la instalacion. Reintenta.'
+    }
 }
 
 function Install-Git {
@@ -147,12 +167,12 @@ if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
     Write-Host 'ERROR: este instalador solo soporta 64 bits (AMD64).' -ForegroundColor Red
     exit 1
 }
-if ((-not (Test-Command 'git')) -or (-not (Test-Path $PYTHON_DIR))) {
+if ((-not (Test-Command 'git')) -or (-not (Find-Python))) {
     $isAdmin = (New-Object Security.Principal.WindowsPrincipal(
         [Security.Principal.WindowsIdentity]::GetCurrent()
     )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Host 'Este instalador requiere permisos de Administrador para instalar Python/Git.' -ForegroundColor Yellow
+        Write-Host 'Este instalador requiere permisos de Administrador para instalar Git y Python.' -ForegroundColor Yellow
         Write-Host 'Cierra esta ventana, haz clic derecho en instalar_vm.bat y elige "Ejecutar como administrador".'
         exit 1
     }
@@ -175,8 +195,8 @@ if (-not (Test-Path (Join-Path $DEST '.git'))) {
 }
 
 Write-Step '1/6 - Python'
-if (Test-Path $PYTHON_DIR) {
-    Write-Host 'Python 3.9 ya esta instalado, se omite.'
+if (Find-Python) {
+    Write-Host 'Python ya esta instalado, se omite.'
 } else {
     Install-Python
 }
