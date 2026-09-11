@@ -360,20 +360,39 @@
 
             <!-- Existencias Section -->
             <section class="content-section" id="existenciasSection">
-                    <div class="inv-search-wrap" style="max-width:600px;margin:12px auto 16px">
+                <div class="ex-toolbar">
+                    <div class="inv-search-wrap ex-search">
                         <span class="inv-search-icon">🔍</span>
                         <input type="text" id="lotsCutSearch" class="inv-search-input"
                             placeholder="Buscar producto por nombre o código..."
                             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                            oninput="renderLotsCut()">
+                            oninput="renderLotsCut()" onkeydown="handleExistenciasKey(event)">
                     </div>
-                    <div class="lots-cut-stats" id="lotsCutStats">
-                        <div class="inv-stat"><span class="inv-stat-num" id="cutStatProducts">0</span><span class="inv-stat-lbl">Productos</span></div>
-                        <div class="inv-stat inv-stat-ok"><span class="inv-stat-num" id="cutStatLots">0</span><span class="inv-stat-lbl">Sublotes</span></div>
-                        <div class="inv-stat inv-stat-warn"><span class="inv-stat-num" id="cutStatUnits">0</span><span class="inv-stat-lbl">Unidades</span></div>
-                        <div class="inv-stat"><span class="inv-stat-num" id="cutStatValue">$0.00</span><span class="inv-stat-lbl">Valor inventario</span></div>
-                    </div>
-                    <div class="lots-cut-list" id="lotsCutList"></div>
+                    <button class="btn btn-secondary btn-sm" onclick="loadLotsCut()" title="Actualizar">🔄</button>
+                </div>
+                <div class="ex-stats" id="lotsCutStats">
+                    <div class="inv-stat"><span class="inv-stat-num" id="cutStatProducts">0</span><span class="inv-stat-lbl">Productos c/stock</span></div>
+                    <div class="inv-stat inv-stat-ok"><span class="inv-stat-num" id="cutStatLots">0</span><span class="inv-stat-lbl">Sublotes</span></div>
+                    <div class="inv-stat inv-stat-warn"><span class="inv-stat-num" id="cutStatUnits">0</span><span class="inv-stat-lbl">Unidades</span></div>
+                    <div class="inv-stat"><span class="inv-stat-num" id="cutStatValue">$0.00</span><span class="inv-stat-lbl">Valor inventario</span></div>
+                </div>
+                <div class="ex-table-wrap">
+                    <table class="data-table ex-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Código</th>
+                                <th>Categoría</th>
+                                <th class="num">Lotes</th>
+                                <th class="num">Existencias</th>
+                                <th class="num">Precio</th>
+                                <th class="num">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lotsCutList"></tbody>
+                    </table>
+                </div>
+                <div class="ex-hint">↑↓ navegar · Enter detalle · Esc cerrar</div>
             </section>
 
             <!-- Inventory Section -->
@@ -459,6 +478,8 @@
                         <input type="text" id="mhSearchInput" placeholder="Producto o código..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                     </div>
                     <button class="btn btn-secondary btn-sm" onclick="filterMovementsHistory()">🔄 Actualizar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportMovementsCsv()">📄 Excel/CSV</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportMovementsPdf()">🖨️ PDF</button>
                 </div>
                 <div class="inv-history-wrap" id="inventoryMovementsWrap">
                     <table class="data-table" style="font-size:12px;">

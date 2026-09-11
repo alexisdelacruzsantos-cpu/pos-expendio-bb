@@ -5372,6 +5372,96 @@ body.inv-panel-open .inv-layout {
     margin-bottom: 16px;
 }
 
+.ex-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.ex-toolbar .ex-search {
+    flex: 1;
+    max-width: 600px;
+    margin: 0;
+}
+
+.ex-toolbar .ex-search .inv-search-input {
+    width: 100%;
+}
+
+.ex-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.ex-table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 300px);
+    border-radius: 10px;
+}
+
+.ex-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ex-table tbody tr.ex-row:hover {
+    background: #f5f8ff;
+}
+
+.ex-table tbody tr.ex-row-selected {
+    background: #e8f1ff;
+    box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.ex-table td.num,
+.ex-table th.num {
+    text-align: right;
+}
+
+.ex-barcode {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    background: #f3f4f6;
+    padding: 2px 7px;
+    border-radius: 5px;
+}
+
+.ex-stock {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 3px 11px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.ex-empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-light);
+}
+
+.ex-hint {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.ex-detail-hint {
+    margin-top: 12px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-size: 12px;
+    text-align: center;
+}
+
 .lots-cut-list {
     display: flex;
     flex-direction: column;

@@ -25,6 +25,12 @@ CATALOGO.xlsx
 # Logs
 *.log
 
+# Instalador: binarios descargables y artefactos de build (no versionar)
+instalador/dist/
+instalador/assets/firefox_setup.exe
+instalador/assets/python-3.9.13-amd64.exe
+instalador/assets/vc_redist.x64.exe
+
 # Sistema operativo
 .DS_Store
 Thumbs.db

@@ -19,6 +19,7 @@ let salesHistoryData = [];
 let salesHistorySearchTimer = null;
 let salesHistorySelectedId = null;
 let movementsHistorySearchTimer = null;
+let inventoryMovementsData = [];
 let ordersProducts = [];
 let ordersCart = [];
 let ordersSearchTimer = null;
@@ -4133,6 +4134,7 @@ async function loadInventoryMovementsHistory() {
         if (q) url += `&q=${encodeURIComponent(q)}`;
         const res = await apiCall(url);
         const movements = (res && res.movements) || [];
+        inventoryMovementsData = movements;
         const countEl = document.getElementById('mhResultsCount');
         if (countEl) countEl.textContent = `${movements.length} movimiento${movements.length === 1 ? '' : 's'}`;
         renderInventoryMovements(movements);
@@ -4166,6 +4168,122 @@ function getMHDay() {
 function filterMovementsHistory() {
     clearTimeout(movementsHistorySearchTimer);
     movementsHistorySearchTimer = setTimeout(loadInventoryMovementsHistory, 250);
+}
+
+function getMovementsForExport() {
+    return inventoryMovementsData;
+}
+
+function movementsExportRow(m) {
+    const qty = Number(m.quantity || 0);
+    const t = m.movement_type;
+    const meta = getMovementMeta(t);
+    const date = m.created_at ? new Date(String(m.created_at).replace(' ','T')) : null;
+    const dateStr = date && !isNaN(date) ? date.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : (m.created_at || '—');
+    return {
+        dateStr,
+        product: m.product_name || '—',
+        barcode: m.barcode || '—',
+        lot: m.batch_number || (m.lot_id ? '#'+m.lot_id : '—'),
+        typeLabel: meta.label,
+        typeRaw: t,
+        signedQty: meta.stock ? `${meta.sign}${Math.abs(qty).toFixed(2)}` : meta.sign,
+        qtyAbs: Math.abs(qty),
+        stock: meta.stock,
+        actor: m.actor_name || m.actor_username || '—',
+        notes: m.notes || ''
+    };
+}
+
+function exportMovementsCsv() {
+    const rows = getMovementsForExport();
+    if (!rows.length) {
+        showToast('No hay movimientos para exportar', 'warning');
+        return;
+    }
+    const totalsInfo = computeMovementTotals(rows);
+    const headers = ['Fecha / Hora', 'Producto', 'Código', 'Lote', 'Tipo', 'Cantidad', 'Antes', 'Después', 'Nota / Usuario'];
+    const data = rows.map(m => {
+        const r = movementsExportRow(m);
+        const ti = totalsInfo[m.id] || { before: null, after: null, stock: false };
+        const before = r.stock && ti.before != null ? Number(ti.before).toFixed(2) : '—';
+        const after = r.stock && ti.after != null ? Number(ti.after).toFixed(2) : '—';
+        return [
+            r.dateStr,
+            r.product,
+            r.barcode,
+            r.lot,
+            r.typeLabel,
+            r.signedQty,
+            before,
+            after,
+            [r.actor, r.notes].filter(Boolean).join(' · ')
+        ];
+    });
+    const csv = '\ufeff' + [headers, ...data].map(row => row.map(csvValue).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `historial-movimientos-${getMHDay()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast(`${rows.length} movimientos exportados a Excel/CSV`, 'success');
+}
+
+function exportMovementsPdf() {
+    const rows = getMovementsForExport();
+    if (!rows.length) {
+        showToast('No hay movimientos para exportar', 'warning');
+        return;
+    }
+    const totalsInfo = computeMovementTotals(rows);
+    const dayLabel = (document.getElementById('mhDayFilter')?.selectedOptions[0]?.textContent || '') || getMHDay();
+    const date = new Date().toLocaleDateString('es-MX');
+    const tableRows = rows.map(m => {
+        const r = movementsExportRow(m);
+        const ti = totalsInfo[m.id] || { before: null, after: null, stock: false };
+        const before = r.stock && ti.before != null ? Number(ti.before).toFixed(2) : '—';
+        const after = r.stock && ti.after != null ? Number(ti.after).toFixed(2) : '—';
+        return `
+            <tr>
+                <td class="nowrap">${escapeHtml(r.dateStr)}</td>
+                <td>${escapeHtml(r.product)}</td>
+                <td>${escapeHtml(r.barcode)}</td>
+                <td>${escapeHtml(r.lot)}</td>
+                <td>${escapeHtml(r.typeLabel)}</td>
+                <td class="number">${escapeHtml(r.signedQty)}</td>
+                <td class="number">${escapeHtml(before)}</td>
+                <td class="number">${escapeHtml(after)}</td>
+                <td>${escapeHtml([r.actor, r.notes].filter(Boolean).join(' · '))}</td>
+            </tr>`;
+    }).join('');
+    const printWindow = window.open('', '_blank', 'width=1100,height=750');
+    if (!printWindow) {
+        showToast('Permite las ventanas emergentes para generar el PDF', 'warning');
+        return;
+    }
+    printWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Historial de movimientos</title>
+        <style>
+            @page { size: landscape; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
+            h1 { font-size: 22px; margin: 0 0 5px; }
+            .meta { color: #4b5563; font-size: 12px; margin-bottom: 16px; }
+            table { border-collapse: collapse; width: 100%; font-size: 10px; }
+            th { background: #f3f4f6; font-weight: 700; }
+            th, td { border: 1px solid #d1d5db; padding: 5px 6px; text-align: left; }
+            .number { text-align: right; }
+            .nowrap { white-space: nowrap; }
+            tr { page-break-inside: avoid; }
+        </style></head><body>
+        <h1>Historial de movimientos de inventario</h1>
+        <div class="meta">Fecha de exportación: ${date} · Día: ${escapeHtml(dayLabel)} · Movimientos: ${rows.length}</div>
+        <table><thead><tr><th>Fecha / Hora</th><th>Producto</th><th>Código</th><th>Lote</th><th>Tipo</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Nota / Usuario</th></tr></thead><tbody>${tableRows}</tbody></table>
+        <script>window.onload = function () { window.print(); };</script></body></html>`);
+    printWindow.document.close();
 }
 
 /* ===== Importar existencias por Excel ===== */
@@ -7535,21 +7653,29 @@ function switchLotsTab(tab) {
     document.getElementById('lotsListPanel').style.display = tab === 'lotsList' ? 'block' : 'none';
 }
 
+let existenciasSelectedIndex = 0;
+let existenciasFiltered = [];
+
+function getExistenciasRows() {
+    const q = (document.getElementById('lotsCutSearch')?.value || '').toLowerCase().trim();
+    const inStock = lotsCutData.filter(p => (Number(p.effective_stock) || 0) > 0);
+    if (!q) return inStock;
+    return inStock.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+        (p.category_name && p.category_name.toLowerCase().includes(q)));
+}
+
 function renderLotsCut() {
     const list = document.getElementById('lotsCutList');
     if (!list) return;
-    const q = (document.getElementById('lotsCutSearch')?.value || '').toLowerCase().trim();
-    const filtered = q
-        ? lotsCutData.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-            (p.category_name && p.category_name.toLowerCase().includes(q)))
-        : lotsCutData;
+    const filtered = getExistenciasRows();
+    existenciasFiltered = filtered;
 
-    const totalProducts = lotsCutData.length;
-    const totalLots = lotsCutData.reduce((s, p) => s + (p.lots_count || 0), 0);
-    const totalUnits = lotsCutData.reduce((s, p) => s + (Number(p.effective_stock) || 0), 0);
-    const totalValue = lotsCutData.reduce((s, p) => s + (Number(p.value) || 0), 0);
+    const totalProducts = filtered.length;
+    const totalLots = filtered.reduce((s, p) => s + (p.lots_count || 0), 0);
+    const totalUnits = filtered.reduce((s, p) => s + (Number(p.effective_stock) || 0), 0);
+    const totalValue = filtered.reduce((s, p) => s + (Number(p.value) || 0), 0);
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     setEl('cutStatProducts', totalProducts);
     setEl('cutStatLots', totalLots);
@@ -7557,54 +7683,131 @@ function renderLotsCut() {
     setEl('cutStatValue', '$' + totalValue.toFixed(2));
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="lots-cut-empty">No se encontraron productos.</div>';
+        list.innerHTML = '<tr><td colspan="7" class="ex-empty">No hay productos con existencias.</td></tr>';
+        existenciasSelectedIndex = 0;
         return;
     }
 
-    const now = new Date();
-    list.innerHTML = filtered.map(p => {
+    list.innerHTML = filtered.map((p, i) => {
         const stock = Number(p.effective_stock) || 0;
         const stockClass = stock > 0 ? 'lot-cut-stock-ok' : 'lot-cut-stock-out';
         const cat = p.category_name || 'Sin categoría';
         const catColor = p.category_color || '#6b7280';
-        const lotsHtml = (p.lots && p.lots.length) ? p.lots.map(l => {
-            const qty = Number(l.current_quantity) || 0;
-            const exp = l.expiry_date ? new Date(l.expiry_date) : null;
-            const days = exp ? Math.round((exp - now) / (24 * 60 * 60 * 1000)) : null;
-            let badge = '';
-            if (days !== null) {
-                if (days < 0) badge = `<span class="lot-cut-tag lot-cut-tag-exp">Vencido ${Math.abs(days)}d</span>`;
-                else if (days <= 7) badge = `<span class="lot-cut-tag lot-cut-tag-exp">Vence ${days}d</span>`;
-                else if (days <= 30) badge = `<span class="lot-cut-tag lot-cut-tag-warn">${days}d</span>`;
-            }
-            const expStr = l.expiry_date || '—';
-            return `<tr>
-                <td><span class="lot-cut-batch">${escapeHtml(l.batch_number || 's/lote')}</span></td>
-                <td>${qty}</td>
-                <td>$${parseFloat(l.sale_price || 0).toFixed(2)}</td>
-                <td>${expStr} ${badge}</td>
-            </tr>`;
-        }).join('') : `<tr><td colspan="4" class="lot-cut-no-lots">Sin sublotes (stock general)</td></tr>`;
-
+        const selected = i === existenciasSelectedIndex ? 'ex-row-selected' : '';
         return `
-        <div class="lot-cut-card">
-            <div class="lot-cut-head">
-                <div class="lot-cut-head-l">
-                    <strong>${escapeHtml(p.name)}</strong>
-                    <span class="lot-cut-cat" style="background:${catColor}20;color:${catColor}">${escapeHtml(cat)}</span>
-                </div>
-                <div class="lot-cut-head-r">
-                    <div class="lot-cut-stock ${stockClass}">${stock} u.</div>
-                    <div class="lot-cut-meta">${p.lots_count || 0} sublote(s) · $${parseFloat(p.price || 0).toFixed(2)} venta</div>
-                </div>
-            </div>
-            ${p.lots && p.lots.length ? `<table class="lot-cut-table">
-                <thead><tr><th>Lote</th><th>Cant.</th><th>P.Venta</th><th>Caducidad</th></tr></thead>
-                <tbody>${lotsHtml}</tbody>
-            </table>` : ''}
-        </div>`;
+        <tr class="ex-row ${selected}" data-index="${i}" data-id="${p.id}"
+            onclick="selectExistenciasRow(${i})" ondblclick="showExistenciasDetail(${i})">
+            <td><strong>${escapeHtml(p.name)}</strong></td>
+            <td><code class="ex-barcode">${escapeHtml(p.barcode || '—')}</code></td>
+            <td><span class="lot-cut-cat" style="background:${catColor}20;color:${catColor}">${escapeHtml(cat)}</span></td>
+            <td class="num">${p.lots_count || 0}</td>
+            <td class="num"><span class="ex-stock ${stockClass}">${stock} u.</span></td>
+            <td class="num">$${parseFloat(p.price || 0).toFixed(2)}</td>
+            <td class="num">$${parseFloat(p.value || 0).toFixed(2)}</td>
+        </tr>`;
     }).join('');
 }
+
+function selectExistenciasRow(index) {
+    const filtered = existenciasFiltered;
+    if (!filtered.length) return;
+    const rows = document.querySelectorAll('#lotsCutList .ex-row');
+    if (!rows.length) return;
+    const next = Math.max(0, Math.min(index, filtered.length - 1));
+    existenciasSelectedIndex = next;
+    rows.forEach((r, i) => {
+        r.classList.toggle('ex-row-selected', i === next);
+        if (i === next) try { r.scrollIntoView({ block: 'nearest' }); } catch {}
+    });
+}
+
+function showExistenciasDetail(index) {
+    const p = existenciasFiltered[index];
+    if (!p) return;
+    const stock = Number(p.effective_stock) || 0;
+    const cat = p.category_name || 'Sin categoría';
+    const catColor = p.category_color || '#6b7280';
+    const now = new Date();
+
+    const lotsHtml = (p.lots && p.lots.length) ? p.lots.map(l => {
+        const qty = Number(l.current_quantity) || 0;
+        const exp = l.expiry_date ? new Date(l.expiry_date) : null;
+        const days = exp ? Math.round((exp - now) / (24 * 60 * 60 * 1000)) : null;
+        let badge = '';
+        if (days !== null) {
+            if (days < 0) badge = `<span class="lot-cut-tag lot-cut-tag-exp">Vencido ${Math.abs(days)}d</span>`;
+            else if (days <= 7) badge = `<span class="lot-cut-tag lot-cut-tag-exp">Vence ${days}d</span>`;
+            else if (days <= 30) badge = `<span class="lot-cut-tag lot-cut-tag-warn">${days}d</span>`;
+        }
+        const expStr = l.expiry_date || '—';
+        return `<tr>
+            <td><span class="lot-cut-batch">${escapeHtml(l.batch_number || 's/lote')}</span></td>
+            <td class="num">${qty}</td>
+            <td class="num">$${parseFloat(l.sale_price || 0).toFixed(2)}</td>
+            <td>${expStr} ${badge}</td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="4" class="lot-cut-no-lots">Sin sublotes (stock general)</td></tr>`;
+
+    showModal('📦 Existencias — ' + escapeHtml(p.name), `
+        <table class="lot-cut-table">
+            <tbody>
+                <tr><td style="width:140px;color:var(--text-light)">Código</td><td><code>${escapeHtml(p.barcode || '—')}</code></td></tr>
+                <tr><td style="color:var(--text-light)">Categoría</td><td><span class="lot-cut-cat" style="background:${catColor}20;color:${catColor}">${escapeHtml(cat)}</span></td></tr>
+                <tr><td style="color:var(--text-light)">Existencias</td><td><span class="ex-stock ${stock > 0 ? 'lot-cut-stock-ok' : 'lot-cut-stock-out'}">${stock} u.</span></td></tr>
+                <tr><td style="color:var(--text-light)">Precio venta</td><td>$${parseFloat(p.price || 0).toFixed(2)}</td></tr>
+                <tr><td style="color:var(--text-light)">Valor inventario</td><td>$${parseFloat(p.value || 0).toFixed(2)}</td></tr>
+            </tbody>
+        </table>
+        <div class="form-section-title" style="margin-top:14px">🧾 Sublotes</div>
+        <table class="lot-cut-table">
+            <thead><tr><th>Lote</th><th style="text-align:right">Cant.</th><th style="text-align:right">P.Venta</th><th>Caducidad</th></tr></thead>
+            <tbody>${lotsHtml}</tbody>
+        </table>
+        <div class="ex-detail-hint">Verifica contra el conteo físico en anaquel.</div>
+    `);
+}
+
+function handleExistenciasKey(e) {
+    const section = document.getElementById('existenciasSection');
+    if (!section || !section.classList.contains('active')) return;
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay && overlay.classList.contains('active')) return;
+    if (e.target && e.target.closest('input, textarea, select, button')) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            if (e.target.id === 'lotsCutSearch') {
+                e.preventDefault();
+                selectExistenciasRow(e.key === 'ArrowDown' ? existenciasSelectedIndex + 1 : existenciasSelectedIndex - 1);
+            }
+            return;
+        }
+        if (e.key === 'Enter' && e.target.id === 'lotsCutSearch') {
+            e.preventDefault();
+            showExistenciasDetail(existenciasSelectedIndex);
+            return;
+        }
+        return;
+    }
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectExistenciasRow(existenciasSelectedIndex + 1);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectExistenciasRow(existenciasSelectedIndex - 1);
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        showExistenciasDetail(existenciasSelectedIndex);
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    const section = document.getElementById('existenciasSection');
+    if (!section || !section.classList.contains('active')) return;
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay && overlay.classList.contains('active')) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+        handleExistenciasKey(e);
+    }
+});
 
 function filterLots() {
     renderLotsTable();
