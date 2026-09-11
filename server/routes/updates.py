@@ -129,6 +129,20 @@ def _restart_bat():
     ]
     with open(bat_path, 'w', encoding='utf-8') as f:
         f.writelines(lines)
+    # Lanza el bat de forma desacoplada: espera 3 s, mata este proceso y
+    # relanza el launcher (sobrevive a la muerte del proceso actual).
+    try:
+        subprocess.Popen(
+            'cmd /c "{}"'.format(bat_path),
+            shell=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'DETACHED_PROCESS', 0) or 0,
+            close_fds=True,
+        )
+    except Exception:
+        pass
     return bat_path
 
 
