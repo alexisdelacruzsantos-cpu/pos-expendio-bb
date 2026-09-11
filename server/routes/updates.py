@@ -119,7 +119,7 @@ def _restart_bat():
     flag = _flag_path()
     lines = [
         '@echo off\r\n',
-        'timeout /t 3 /nobreak >nul 2>&1\r\n',
+        'ping -n 4 127.0.0.1 >nul\r\n',
         'taskkill /PID {} /T /F >nul 2>&1\r\n'.format(os.getpid()),
         'cd /d "{}"\r\n'.format(root),
         'del "{}" >nul 2>&1\r\n'.format(flag),
@@ -129,16 +129,18 @@ def _restart_bat():
     ]
     with open(bat_path, 'w', encoding='utf-8') as f:
         f.writelines(lines)
-    # Lanza el bat de forma desacoplada: espera 3 s, mata este proceso y
-    # relanza el launcher (sobrevive a la muerte del proceso actual).
+    # Lanza el bat de forma desacoplada via PowerShell Start-Process (sin
+    # consola, sobrevive a la muerte de este proceso): espera ~3 s, mata este
+    # proceso y relanza el launcher silencioso.
     try:
         subprocess.Popen(
-            'cmd /c "{}"'.format(bat_path),
-            shell=True,
+            'powershell -NoProfile -WindowStyle Hidden -Command '
+            '"Start-Process -FilePath \'{}\' -ArgumentList \'/c {}\' -WindowStyle Hidden"'.format(
+                'C:\\Windows\\System32\\cmd.exe', bat_path,
+            ),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, 'DETACHED_PROCESS', 0) or 0,
             close_fds=True,
         )
     except Exception:
