@@ -69,6 +69,20 @@ def _read_local_sha():
                 return f.read().strip() or None
     except Exception:
         pass
+    # Fallback: si la instalación llegó por git (dev/stores), leer el commit real.
+    try:
+        root = _project_root()
+        head = os.path.join(root, '.git', 'HEAD')
+        if os.path.exists(head):
+            with open(head, 'r') as f:
+                ref = f.read().strip()
+            if ref.startswith('ref:'):
+                ref_path = os.path.join(root, '.git', ref[5:].strip())
+                if os.path.exists(ref_path):
+                    with open(ref_path, 'r') as f:
+                        return f.read().strip() or None
+    except Exception:
+        pass
     return None
 
 
