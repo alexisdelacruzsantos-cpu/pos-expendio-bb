@@ -192,6 +192,27 @@
                         </div>
                     </div>
 
+                    <!-- Verificador de precios (F9) -->
+                    <div class="price-checker-overlay" id="priceCheckerOverlay">
+                        <div class="price-checker-card">
+                            <div class="price-checker-header">
+                                <strong>💲 Verificador de Precios</strong>
+                                <button class="pos-search-close" onclick="closePriceChecker()" type="button">✕ Cerrar</button>
+                            </div>
+                            <div class="price-checker-body">
+                                <input type="text" id="priceCheckInput" class="form-input price-checker-input" placeholder="Escanea el código de barras..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="handlePriceCheckKey(event)">
+                                <div class="price-checker-result" id="priceCheckResult">
+                                    <div class="price-checker-empty">Escanea un código para ver el precio</div>
+                                </div>
+                                <div class="price-checker-actions">
+                                    <button type="button" class="btn btn-primary" onclick="confirmPriceAdd()" title="Agregar al carrito (Enter)">➕ Agregar al carrito</button>
+                                    <button type="button" class="btn btn-secondary" onclick="closePriceChecker()">Cancelar <span class="kbd">Esc</span></button>
+                                </div>
+                                <div class="price-checker-hint">Enter agrega al carrito · Esc cierra</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Carrito a pantalla completa -->
                     <div class="pos-cart-area pos-cart-full">
                         <div class="pos-cart-header">
@@ -257,6 +278,10 @@
                                 <button class="pos-history-btn" id="posHistoryBtn" onclick="openSalesHistory()" title="Historial de ventas y devoluciones del día">
                                     <span class="pos-history-btn-icon">🧾</span>
                                     <span class="pos-history-btn-text">Ventas y devoluciones</span>
+                                </button>
+                                <button class="pos-history-btn" onclick="openPriceChecker()" title="Verificar precio (F9)">
+                                    <span class="pos-history-btn-icon">💰</span>
+                                    <span class="pos-history-btn-text">F9 Verificar precio</span>
                                 </button>
                                 <div class="pos-total-card" id="posTotalCard" role="button" tabindex="0" onclick="openPaymentModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPaymentModal();}">
                                     <div class="pos-total-big" id="posTotal">$0.00</div>

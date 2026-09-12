@@ -7205,3 +7205,129 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
         transform: translateY(0);
     }
 }
+
+/* Verificador de precios (F9) */
+.price-checker-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 20, 40, 0.55);
+    z-index: 960;
+    align-items: center;
+    justify-content: center;
+}
+
+.price-checker-overlay.visible {
+    display: flex;
+}
+
+.price-checker-card {
+    width: min(520px, 92vw);
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(3, 20, 40, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.price-checker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    background: var(--primary);
+    color: white;
+    font-size: 15px;
+}
+
+.price-checker-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.price-checker-input {
+    font-size: 20px;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+.price-checker-result {
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.price-checker-empty {
+    color: #94a3b8;
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+}
+
+.price-checker-result-name {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.price-checker-result-code {
+    font-size: 13px;
+    color: #64748b;
+    letter-spacing: 0.5px;
+}
+
+.price-checker-result-price {
+    font-size: 34px;
+    font-weight: 900;
+    color: #059669;
+    margin-top: 6px;
+}
+
+.price-checker-result-lots {
+    font-size: 15px;
+    color: #334155;
+    margin-top: 2px;
+}
+
+.price-checker-result-lots .pil {
+    display: inline-block;
+    margin: 2px 3px;
+    padding: 2px 10px;
+    background: #eef2ff;
+    color: #4f46e5;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.price-checker-result-notfound {
+    color: #dc2626;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    padding: 20px;
+}
+
+.price-checker-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.price-checker-hint {
+    text-align: center;
+    color: #6b7280;
+    font-size: 12px;
+}

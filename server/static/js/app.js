@@ -128,6 +128,8 @@ function setupGlobalKeys() {
         const modalOverlay = document.getElementById('modalOverlay');
         const modalActive = modalOverlay && modalOverlay.classList.contains('active');
         const salesHistoryOpen = document.getElementById('salesHistoryOverlay')?.style.display === 'flex';
+        const priceCheckerEl = document.getElementById('priceCheckerOverlay');
+        const priceCheckerOpen = priceCheckerEl && priceCheckerEl.style.display === 'flex';
 
         if (salesHistoryOpen) {
             if (e.key === 'Escape') {
@@ -160,6 +162,7 @@ function setupGlobalKeys() {
         if (e.key === 'Escape') {
             e.preventDefault();
             e.stopPropagation();
+            if (priceCheckerOpen) { closePriceChecker(); return; }
             if (ubuntuMenuOpen) { closeUbuntuMenu(); return; }
             if (modalActive) {
                 if (isAnyInput) {
@@ -233,7 +236,20 @@ function setupGlobalKeys() {
             return;
         }
 
-        if (searchOpen || isSearchInput) return;
+        if (e.key === 'F9') {
+            const salesActive = document.getElementById('salesSection')?.classList.contains('active');
+            if (!salesActive) return;
+            e.preventDefault();
+            if (priceCheckerOpen) {
+                const inp = document.getElementById('priceCheckInput');
+                if (inp) inp.focus();
+            } else {
+                openPriceChecker();
+            }
+            return;
+        }
+
+        if (searchOpen || isSearchInput || priceCheckerOpen) return;
 
         /* Ubuntu menu: shortcuts 1-9 y 0 */
         if (ubuntuMenuOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1776,6 +1792,123 @@ function closeSearchResults() {
         search.focus();
     }
     posSelectedIndex = 0;
+}
+
+let priceCheckProduct = null;
+
+function openPriceChecker() {
+    const wrapper = document.getElementById('priceCheckerOverlay');
+    if (!wrapper) return;
+    priceCheckProduct = null;
+    wrapper.classList.add('visible');
+    wrapper.style.display = 'flex';
+    const input = document.getElementById('priceCheckInput');
+    if (input) input.value = '';
+    renderPriceCheckEmpty();
+    setTimeout(() => {
+        const inp = document.getElementById('priceCheckInput');
+        if (inp) inp.focus();
+    }, 50);
+}
+
+function closePriceChecker() {
+    const wrapper = document.getElementById('priceCheckerOverlay');
+    if (wrapper) {
+        wrapper.classList.remove('visible');
+        wrapper.style.display = 'none';
+    }
+    priceCheckProduct = null;
+    const search = document.getElementById('posSearchInput');
+    if (search) {
+        search.focus();
+        try { search.select(); } catch {}
+    }
+}
+
+function renderPriceCheckEmpty() {
+    const result = document.getElementById('priceCheckResult');
+    if (result) {
+        result.innerHTML = '<div class="price-checker-empty">Escanea un código para ver el precio</div>';
+    }
+}
+
+function renderPriceCheck(product) {
+    const result = document.getElementById('priceCheckResult');
+    if (!result) return;
+
+    const basePrice = parseFloat(product.price) || 0;
+    const productLots = allLots
+        .filter(l => l.product_id === product.id && l.current_quantity > 0)
+        .sort((a, b) => a.days_left - b.days_left);
+
+    const allPricesSet = new Set();
+    allPricesSet.add(basePrice);
+    productLots.forEach(l => {
+        const lp = l.sale_price && l.sale_price > 0 ? l.sale_price : basePrice;
+        allPricesSet.add(lp);
+    });
+    const availablePrices = Array.from(allPricesSet).sort((a, b) => a - b);
+
+    let lotsHtml = '';
+    if (productLots.length > 0 && availablePrices.length > 1) {
+        lotsHtml = `<div class="price-checker-result-lots">Precios disponibles: ${availablePrices.map(p => `<span class="pil">$${p.toFixed(2)}</span>`).join('')}</div>`;
+    } else if (productLots.length > 0) {
+        const hasLotPrice = productLots.some(l => l.sale_price && l.sale_price > 0);
+        if (hasLotPrice) {
+            lotsHtml = `<div class="price-checker-result-lots">Precio por lote: <span class="pil">$${availablePrices[availablePrices.length - 1].toFixed(2)}</span></div>`;
+        }
+    }
+
+    result.innerHTML = `
+        <div class="price-checker-result-name">${escapeHtml(product.name)}</div>
+        <div class="price-checker-result-code">${escapeHtml(product.barcode || '')}</div>
+        <div class="price-checker-result-price">$${basePrice.toFixed(2)}</div>
+        ${lotsHtml}
+    `;
+}
+
+function renderPriceCheckNotFound() {
+    const result = document.getElementById('priceCheckResult');
+    if (result) {
+        result.innerHTML = '<div class="price-checker-result-notfound">Código no encontrado</div>';
+    }
+}
+
+function handlePriceCheckKey(e) {
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closePriceChecker();
+        return;
+    }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const input = document.getElementById('priceCheckInput');
+    const code = (input?.value || '').trim();
+    if (!code) return;
+    if (priceCheckProduct && String(priceCheckProduct.barcode) === String(code)) {
+        addToCart(priceCheckProduct.id);
+        closePriceChecker();
+        showToast('✓ Producto agregado', 'success');
+        return;
+    }
+    const product = allProducts.find(p => String(p.barcode) === String(code));
+    if (product) {
+        priceCheckProduct = product;
+        renderPriceCheck(product);
+    } else {
+        priceCheckProduct = null;
+        renderPriceCheckNotFound();
+    }
+}
+
+function confirmPriceAdd() {
+    if (!priceCheckProduct) {
+        showToast('Escanea un código primero', 'warning');
+        return;
+    }
+    addToCart(priceCheckProduct.id);
+    closePriceChecker();
+    showToast('✓ Producto agregado', 'success');
 }
 
 function handlePosKey(e) {
@@ -8684,6 +8817,12 @@ function closeAllOverlays() {
     });
     const sh = document.getElementById('salesHistoryOverlay');
     if (sh) sh.style.display = 'none';
+    const pc = document.getElementById('priceCheckerOverlay');
+    if (pc) {
+        pc.classList.remove('visible');
+        pc.style.display = 'none';
+    }
+    priceCheckProduct = null;
 }
 
 function closeModal() {
