@@ -421,6 +421,19 @@ function forceShiftLogin(reason = 'No hay turno de caja activo. Inicia sesión d
     window.location.href = '/';
 }
 
+async function blockUntilShiftOpen(reason = 'Necesitas abrir un turno de caja para operar') {
+    await refreshActiveShift();
+    if (activeShift) {
+        if (typeof updateCashStatus === 'function') {
+            const cur = await apiCall('/cash/current').catch(() => null);
+            if (cur) updateCashStatus(cur);
+        }
+        return;
+    }
+    showOpenShiftModal({ source: 'login' });
+    showToast(reason, 'warning');
+}
+
 setInterval(async () => {
     if (!currentUser) return;
     if (shiftGateInFlight) return;
@@ -444,6 +457,10 @@ setInterval(async () => {
             updateShiftChip();
             if (typeof updateCashStatus === 'function') {
                 updateCashStatus({ has_open: false });
+            }
+            if (prev) {
+                // El turno se cerró en otra vista/instancia: bloquear hasta reabrir.
+                blockUntilShiftOpen('El turno de caja fue cerrado. Debes abrir un turno para continuar.');
             }
         }
     } catch {}
@@ -751,8 +768,18 @@ async function closeOverdueShift() {
             counted_cash: data.expected_amount || 0
         });
         showToast(`✓ Turno de ayer #${data.register.id} cerrado`, 'success');
-        const cur = await apiCall('/cash/current').catch(() => null);
-        if (cur) updateCashStatus(cur);
+        const active = await apiCall('/cash/active').catch(() => null);
+        if (active?.has_active) {
+            const cur = await apiCall('/cash/current').catch(() => null);
+            if (cur) updateCashStatus(cur);
+        } else {
+            // No quedó ningún turno abierto: NO se puede operar sin turno.
+            shiftGateBlocking = false;
+            closeShiftGate({silent:true});
+            activeShift = null;
+            updateShiftChip();
+            await blockUntilShiftOpen('Turno de ayer cerrado. Abre un turno para empezar a vender.');
+        }
     } catch (error) {
         let msg = 'Error';
         try { msg = JSON.parse(error.message).error || error.message; } catch { msg = error.message; }
@@ -7199,7 +7226,11 @@ async function adminForceCloseShift(shiftId, cashierName) {
             notes: 'Cierre forzado por administrador'
         });
         showToast(`✓ Turno #${shiftId} cerrado por administrador`, 'success');
-        loadAllShifts();
+        if (activeShift && Number(activeShift.register?.id) === Number(shiftId)) {
+            blockUntilShiftOpen('El turno activo fue cerrado por el administrador. Abre un turno para continuar.');
+        } else {
+            loadAllShifts();
+        }
     } catch (error) {
         let msg = 'Error al cerrar turno';
         try { msg = JSON.parse(error.message).error || error.message; } catch {}
@@ -7217,7 +7248,11 @@ async function adminCancelShift(shiftId) {
             notes: `CANCELADO: ${reason}`
         });
         showToast(`✓ Turno #${shiftId} cancelado`, 'success');
-        loadAllShifts();
+        if (activeShift && Number(activeShift.register?.id) === Number(shiftId)) {
+            blockUntilShiftOpen('El turno activo fue cancelado. Abre un turno para continuar.');
+        } else {
+            loadAllShifts();
+        }
     } catch (error) {
         let msg = 'Error al cancelar turno';
         try { msg = JSON.parse(error.message).error || error.message; } catch {}
