@@ -7,6 +7,7 @@ import sys
 import time
 import json
 import shutil
+import subprocess
 import urllib.request
 import urllib.error
 import zipfile
@@ -123,6 +124,13 @@ def _merge_update(src_root, project_root):
         else:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy2(src, dst)
+            # El zipball de GitHub no preserva el bit de ejecucion: lo restauramos
+            # para que los .sh del servidor vuelvan a ser lanzables directamente.
+            if src.endswith('.sh'):
+                try:
+                    os.chmod(dst, os.stat(dst).st_mode | 0o755)
+                except Exception:
+                    pass
 
 
 def _cleanup_restart_artifacts():
@@ -215,7 +223,12 @@ def _restart_sh():
     root = _project_root()
     bat_path = os.path.join(root, 'pos', '.restart.sh')
     flag = _flag_path()
-    log_path = os.path.join(root, 'pos', 'logs', 'servidor.log')
+    log_dir = os.path.join(root, 'pos', 'logs')
+    log_path = os.path.join(log_dir, 'servidor.log')
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except Exception:
+        pass
     port = os.environ.get('PORT', '5000')
     env = dict(os.environ)
     # Bajo systemd esta variable existe y queda heredada por el script: si esta,
@@ -239,7 +252,7 @@ def _restart_sh():
         'cd "{}"\n'.format(root),
         'rm -f "{}"\n'.format(flag),
         'if [ -z "$POS_SYSTEMD" ]; then\n',
-        '    if [ -x "{launcher}" ]; then nohup "{launcher}" >> "{log}" 2>&1 & fi\n'.format(
+        '    if [ -f "{launcher}" ]; then nohup bash "{launcher}" >> "{log}" 2>&1 & fi\n'.format(
             launcher=os.path.join(root, 'server', 'start_server.sh'),
             log=log_path,
         ),
@@ -264,8 +277,13 @@ def _restart_sh():
             start_new_session=True,
             env=env,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        try:
+            with open(log_path, 'a') as f:
+                f.write('[restart] ERROR al lanzar el script de reinicio: {}\n'.format(e))
+        except Exception:
+            pass
+        return None
     return bat_path
 
 
