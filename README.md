@@ -37,6 +37,10 @@ Después solo hay que hacer doble clic en `server/start_pos.bat` y entrar a `htt
 > los errores reales encontrados (UCRT que falla en Python, dependencias que piden
 > Python 3.10, IE11 sin soporte del login → instalar Firefox 115 ESR, permisos UAC
 > en el arranque automático, etc.) con sus soluciones.
+>
+> **¿Cómo llegan los cambios a las tiendas?** Consulta `PROCESO_RELEASE.md` — el flujo
+> de publicar cambios/subir `APP_VERSION`, el sistema de actualizaciones web y la
+> convención para cambios de esquema de base de datos.
 
 ### 1. Clonar este repositorio
 
