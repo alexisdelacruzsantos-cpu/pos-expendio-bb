@@ -189,6 +189,68 @@ def _restart_bat():
     return bat_path
 
 
+def _restart_sh():
+    """Script de reinicio para sistemas tipo Unix (Linux/Mac).
+
+    Equivalente a _restart_bat pero para POSIX:
+      1. Mata lo que escuche en el puerto (fuser -k) o ss -> PID.
+      2. Registra cada paso en el log del servidor.
+      3. Relanza el servidor con nohup (sobrevive a la muerte de este proceso).
+      4. El script se borra solo: la primera linea agenda su propia eliminacion.
+    """
+    root = _project_root()
+    bat_path = os.path.join(root, 'pos', '.restart.sh')
+    flag = _flag_path()
+    log_path = os.path.join(root, 'pos', 'logs', 'servidor.log')
+    port = os.environ.get('PORT', '5000')
+    lines = [
+        '#!/bin/bash\n',
+        'echo "[restart] iniciando reinicio automatico..." >> "{}"\n'.format(log_path),
+        'sleep 3\n',
+        '# Mata lo que escuche en el puerto\n',
+        'PIDS=$(ss -tlnp 2>/dev/null | grep ":' + port + ' " | grep -o "pid=[0-9]*" | cut -d= -f2 | sort -u)\n',
+        'if [ -z "$PIDS" ]; then PIDS=$(fuser "' + port + '/tcp" 2>/dev/null); fi\n',
+        'for p in $PIDS; do\n',
+        '    echo "[restart] matando PID $p en el puerto ' + port + '" >> "{}"\n'.format(log_path),
+        '    kill -9 "$p" >> "{}" 2>&1\n'.format(log_path),
+        'done\n',
+        'echo "[restart] matando este proceso ($$ no aplica, PID del server): $PPID" >> "{}"\n'.format(log_path),
+        'kill -9 {} >> "{}" 2>&1\n'.format(os.getpid(), log_path),
+        'cd "{}"\n'.format(root),
+        'rm -f "{}"\n'.format(flag),
+        'if [ -x "{launcher}" ]; then nohup "{launcher}" >> "{log}" 2>&1 & fi\n'.format(
+            launcher=os.path.join(root, 'server', 'start_server.sh'),
+            log=log_path,
+        ),
+        'echo "[restart] done." >> "{}"\n'.format(log_path),
+        '(sleep 8 && rm -f "{}") &\n'.format(bat_path),
+        'exit 0\n',
+    ]
+    with open(bat_path, 'w', encoding='utf-8') as f:
+        f.write(''.join(lines))
+    try:
+        os.chmod(bat_path, 0o755)
+    except Exception:
+        pass
+    try:
+        subprocess.Popen(
+            ['/bin/bash', bat_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception:
+        pass
+    return bat_path
+
+
+def _restart_script():
+    """Despachador multiplataforma: genera y lanza el script de reinicio."""
+    if os.name == 'nt':
+        return _restart_bat()
+    return _restart_sh()
+
+
 @updates_bp.route('/status', methods=['GET'])
 @jwt_required()
 @require_permission('settings', 'delete')
@@ -336,7 +398,7 @@ def apply():
                 f.write(head_sha)
 
         # 6) Programa el reinicio automático y responde antes de morir
-        _restart_bat()
+        _restart_script()
         return jsonify({
             'message': 'Actualización aplicada. El sistema se reiniciará en unos segundos…',
             'version': APP_VERSION,
