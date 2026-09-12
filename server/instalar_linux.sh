@@ -5,6 +5,8 @@ set -e
 
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 SERVICE_NAME="pos-expendio-bb"
+# El usuario real que lanzo el instalador (sudo pone SUDO_USER; si no, el de sesion).
+RUN_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 
 echo "=============================================="
 echo " POS EXPENDIO BB - Instalador Linux"
@@ -33,6 +35,10 @@ echo "[3/4] Preparando carpetas..."
 mkdir -p "$PROJECT/server/static/data"
 mkdir -p "$PROJECT/pos/logs"
 chmod +x "$PROJECT/server/start_server.sh" || true
+# El servicio corre como el usuario real, NO root: hay que pasarle estas carpetas
+# (so pena de "unable to open database file" al arrancar).
+chown -R "$RUN_USER":"$RUN_USER" "$PROJECT/server/static" || true
+chown -R "$RUN_USER":"$RUN_USER" "$PROJECT/pos" || true
 
 # 4) Servicio systemd (autoinicio al encender la PC)
 echo "[4/4] Configurando autoinicio (systemd)..."
@@ -44,7 +50,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=$(logname 2>/dev/null || echo root)
+User=$RUN_USER
 WorkingDirectory=$PROJECT/server
 ExecStart=$PROJECT/venv/bin/python app.py
 Restart=always
