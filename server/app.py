@@ -226,8 +226,8 @@ if __name__ == '__main__':
     print("Presiona Ctrl+C para detener el servidor")
     print("=" * 50)
 
-    # Respaldo automático al arrancar (y luego cada 24h)
-    threading.Timer(1, _autobackup).start()
+    # Respaldo automático al arrancar (diferido 5 min para no colgar la apertura) y luego cada 24h
+    threading.Timer(5 * 60, _autobackup).start()
 
     port = int(os.environ.get('PORT', '5000'))
     host = os.environ.get('HOST', '0.0.0.0')

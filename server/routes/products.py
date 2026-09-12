@@ -29,9 +29,15 @@ def get_products():
 
         query = '''
             SELECT p.*, c.name as category_name, c.color as category_color,
-                   (SELECT COALESCE(SUM(current_quantity), 0) FROM lots l WHERE l.product_id = p.id) as lots_stock
+                   COALESCE(lagg.stock_ok, 0) as lots_stock
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN (
+                SELECT l.product_id,
+                       SUM(CASE WHEN l.current_quantity > 0 THEN l.current_quantity ELSE 0 END) as stock_ok
+                FROM lots l
+                GROUP BY l.product_id
+            ) lagg ON lagg.product_id = p.id
             WHERE 1=1
         '''
         params = []
@@ -116,10 +122,17 @@ def get_inventory():
         rows = db.fetch_all('''
             SELECT p.id, p.name, p.barcode, p.category_id, p.price, p.cost, p.stock, p.active,
                    c.name as category_name, c.color as category_color,
-                   (SELECT COALESCE(SUM(CASE WHEN current_quantity > 0 THEN current_quantity ELSE 0 END), 0) FROM lots l WHERE l.product_id = p.id) as lots_stock,
-                   (SELECT COUNT(*) FROM lots l WHERE l.product_id = p.id) as lots_count
+                   COALESCE(lagg.stock_ok, 0) as lots_stock,
+                   COALESCE(lagg.cnt, 0) as lots_count
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN (
+                SELECT l.product_id,
+                       SUM(CASE WHEN l.current_quantity > 0 THEN l.current_quantity ELSE 0 END) as stock_ok,
+                       COUNT(*) as cnt
+                FROM lots l
+                GROUP BY l.product_id
+            ) lagg ON lagg.product_id = p.id
             WHERE p.active = 1
             ORDER BY p.name
         ''')

@@ -20,8 +20,9 @@ class Database:
             self.conn.row_factory = sqlite3.Row
             self.conn.execute("PRAGMA foreign_keys = ON")
             self.conn.execute("PRAGMA journal_mode = WAL")
-            # FULL: garantiza que un corte de energía no pierda un cobro ya confirmado
-            self.conn.execute("PRAGMA synchronous = FULL")
+            # NORMAL: con WAL, un corte de energía no corrompe; solo puede perder
+            # el último commit (ya confirmado por Flask). Mucho más rápido en escritura.
+            self.conn.execute("PRAGMA synchronous = NORMAL")
             # Evita errores "database is locked" en escrituras simultáneas
             self.conn.execute("PRAGMA busy_timeout = 10000")
         return self.conn
@@ -353,6 +354,27 @@ class Database:
         self.create_default_users()
         self.create_default_permissions()
         self.run_migrations()
+        self.create_indexes()
+    
+    def create_indexes(self):
+        """Índices para las búsquedas y joins más usados (idempotente)."""
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)",
+            "CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)",
+            "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)",
+            "CREATE INDEX IF NOT EXISTS idx_lots_product ON lots(product_id)",
+            "CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id)",
+            "CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id)",
+            "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date)",
+            "CREATE INDEX IF NOT EXISTS idx_sales_cashier ON sales(cashier_id)",
+            "CREATE INDEX IF NOT EXISTS idx_inv_moves_product ON inventory_movements(product_id)",
+            "CREATE INDEX IF NOT EXISTS idx_returns_sale ON returns(sale_id)",
+        ]
+        for idx in indexes:
+            try:
+                self.execute(idx)
+            except Exception:
+                pass
     
     def create_default_categories(self):
         categories = [
