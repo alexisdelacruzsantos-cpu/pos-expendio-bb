@@ -203,6 +203,12 @@ def _restart_sh():
     flag = _flag_path()
     log_path = os.path.join(root, 'pos', 'logs', 'servidor.log')
     port = os.environ.get('PORT', '5000')
+    env = dict(os.environ)
+    # Bajo systemd esta variable existe y queda heredada por el script: si esta,
+    # NO hay que relanzar con nohup porque systemd (Restart=always) lo hace solo.
+    under_systemd = os.environ.get('INVOCATION_ID', '')
+    if under_systemd:
+        env['POS_SYSTEMD'] = '1'
     lines = [
         '#!/bin/bash\n',
         'echo "[restart] iniciando reinicio automatico..." >> "{}"\n'.format(log_path),
@@ -218,10 +224,14 @@ def _restart_sh():
         'kill -9 {} >> "{}" 2>&1\n'.format(os.getpid(), log_path),
         'cd "{}"\n'.format(root),
         'rm -f "{}"\n'.format(flag),
-        'if [ -x "{launcher}" ]; then nohup "{launcher}" >> "{log}" 2>&1 & fi\n'.format(
+        'if [ -z "$POS_SYSTEMD" ]; then\n',
+        '    if [ -x "{launcher}" ]; then nohup "{launcher}" >> "{log}" 2>&1 & fi\n'.format(
             launcher=os.path.join(root, 'server', 'start_server.sh'),
             log=log_path,
         ),
+        'else\n',
+        '    echo "[restart] bajo systemd: dejo que systemd relance el servicio." >> "{}"\n'.format(log_path),
+        'fi\n',
         'echo "[restart] done." >> "{}"\n'.format(log_path),
         '(sleep 8 && rm -f "{}") &\n'.format(bat_path),
         'exit 0\n',
@@ -238,6 +248,7 @@ def _restart_sh():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=env,
         )
     except Exception:
         pass
