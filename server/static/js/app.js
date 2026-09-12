@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEscapeBlocker();
     setupSectionShortcuts();
     setupSalesFocusGuard();
+    setupAdjustmentsFocusGuard();
     showSection('sales');
 });
 
@@ -1410,7 +1411,7 @@ inventory: 'Agregar inventario',
             case 'existencias': await loadLotsCut(); break;
             case 'inventory': await loadInventory(); break;
             case 'inventory-history': await loadInventoryMovementsHistory(); break;
-            case 'adjustments': break;
+            case 'adjustments': focusAdjustmentsSearch(); break;
             case 'orders': await loadOrdersSection(); break;
             case 'reports': await loadReports(); break;
             case 'cash': await Promise.all([checkCashRegister(), loadCashData(), loadCashHistory(), loadDayCuts(), loadMyShift()]); break;
@@ -1433,6 +1434,16 @@ function focusPosSearch() {
     }, 50);
 }
 
+function focusAdjustmentsSearch() {
+    setTimeout(() => {
+        const search = document.getElementById('adjustmentsSearch');
+        if (search && document.activeElement !== search) {
+            search.focus();
+            try { search.setSelectionRange(search.value.length, search.value.length); } catch (_) {}
+        }
+    }, 50);
+}
+
 function setupSalesFocusGuard() {
     document.addEventListener('click', (e) => {
         const salesSection = document.getElementById('salesSection');
@@ -1443,6 +1454,19 @@ function setupSalesFocusGuard() {
         if (target.closest('input, textarea, select, button, a, [contenteditable], .pos-search-overlay, .payment-overlay, .modal-overlay, .pos-cart-table')) return;
         if (target === search) return;
         focusPosSearch();
+    });
+}
+
+function setupAdjustmentsFocusGuard() {
+    document.addEventListener('click', (e) => {
+        const adjSection = document.getElementById('adjustmentsSection');
+        if (!adjSection || !adjSection.classList.contains('active')) return;
+        const target = e.target;
+        const search = document.getElementById('adjustmentsSearch');
+        if (!search) return;
+        if (target.closest('input, textarea, select, button, a, [contenteditable], .modal-overlay, .adjustments-scan-full')) return;
+        if (target === search) return;
+        focusAdjustmentsSearch();
     });
 }
 
