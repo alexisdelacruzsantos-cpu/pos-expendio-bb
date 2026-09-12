@@ -226,6 +226,14 @@ if __name__ == '__main__':
     print("Presiona Ctrl+C para detener el servidor")
     print("=" * 50)
 
+    # Limpia restos de una actualizacion previa que quedo a medias (por ejemplo
+    # el bat de reinicio que no se auto-borro). A prueba de fallos.
+    try:
+        from routes.updates import _cleanup_restart_artifacts
+        _cleanup_restart_artifacts()
+    except Exception:
+        pass
+
     # Respaldo automático al arrancar (diferido 5 min para no colgar la apertura) y luego cada 24h
     threading.Timer(5 * 60, _autobackup).start()
 

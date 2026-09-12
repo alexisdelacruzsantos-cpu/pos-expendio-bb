@@ -111,28 +111,65 @@ def _merge_update(src_root, project_root):
             shutil.copy2(src, dst)
 
 
+def _cleanup_restart_artifacts():
+    """Elimina restos de una actualizacion previa que quedo a medias.
+
+    El servidor recien arrancado es el proceso "bueno": si aun existen el bat de
+    reinicio o la marca de actualizacion en disco, son restos de un reinicio
+    interrumpido (por ejemplo el kill por PID fallo y el launcher nunca hizo
+    cleanup). Se borran para no dejar basura ni bloquear futuros apply.
+    """
+    root = _project_root()
+    for name in ('.restart.bat', '.updating'):
+        p = os.path.join(root, 'pos', name)
+        try:
+            if os.path.exists(p):
+                os.remove(p)
+        except Exception:
+            pass
+
+
 def _restart_bat():
-    """Batch que espera, mata el proceso actual y relanza el launcher silencioso."""
+    """Batch que espera, mata el proceso actual y relanza el launcher silencioso.
+
+    A prueba de fallos:
+      1. Mata por puerto (netstat -> PID), NO solo por PID: si el PID capturado
+         no coincide, el servidor viejo seguia con el puerto 5000 y el nuevo no
+         podia bindear. Ahora se mata TODO lo que escuche en :5000.
+      2. Los pasos se registran en el log del servidor (no mas fallos mudos).
+      3. El bat se borra igual que antes con un cmd desacoplado, y ADEMAS el
+         servidor limpia restos al arrancar (ver _cleanup_restart_artifacts).
+    """
     root = _project_root()
     launcher = os.path.join(root, 'iniciar_silencioso.bat')
     bat_path = os.path.join(root, 'pos', '.restart.bat')
     flag = _flag_path()
+    log_path = os.path.join(root, 'pos', 'logs', 'servidor.log')
+    port = os.environ.get('PORT', '5000')
     lines = [
         '@echo off\r\n',
+        'echo [restart] iniciando reinicio automatico... >> "{}"\r\n'.format(log_path),
         'ping -n 4 127.0.0.1 >nul\r\n',
-        'taskkill /PID {} /T /F >nul 2>&1\r\n'.format(os.getpid()),
+        # Mata lo que escuche en el puerto 5000 (netstat -> PID), repitiendo dos
+        # veces por si hay IPv4 e IPv6 o queda algun proceso recien lanzado.
+        'for /f "tokens=5" %%a in (\'netstat -ano ^| findstr ":' + port + ' " ^| findstr "LISTENING"\') do (\r\n',
+        '    echo [restart] matando PID %%a en el puerto ' + port + ' >> "{}"\r\n'.format(log_path),
+        '    taskkill /PID %%a /T /F >> "{}" 2>&1\r\n'.format(log_path),
+        ')\r\n',
+        'taskkill /PID {} /T /F >> "{}" 2>&1\r\n'.format(os.getpid(), log_path),
         'cd /d "{}"\r\n'.format(root),
         'del "{}" >nul 2>&1\r\n'.format(flag),
         'if exist "{}" start "POS-RELAUNCH" /min "{}"\r\n'.format(launcher, launcher),
+        'echo [restart] done. >> "{}"\r\n'.format(log_path),
         # cmd.exe mantiene abierto el handle del bat mientras lo ejecuta, asi que
         # no puede borrarse a si mismo. Se lanza un cmd desacoplado que espera
-        # mas que la vida de este bat y luego lo borra. (Sin espacios en la ruta,
-        # asi que no necesita comillas internas.)
+        # mas que la vida de este bat y luego lo borra.
         'start "" /min cmd /c "ping -n 8 127.0.0.1 >nul & del /f /q {}"\r\n'.format(bat_path),
         'exit\r\n',
     ]
+    # El puerto se inyecta para no repetir el literal y mantener una sola fuente.
     with open(bat_path, 'w', encoding='utf-8') as f:
-        f.writelines(lines)
+        f.write(''.join(lines))
     # Lanza el bat de forma desacoplada via PowerShell Start-Process (sin
     # consola, sobrevive a la muerte de este proceso): espera ~3 s, mata este
     # proceso y relanza el launcher silencioso.
