@@ -3167,22 +3167,25 @@ function showQuickAddStockModal(product) {
     const currentPrice = Number(product.price) || 0;
     const currentStock = Math.round(Number(product.stock) || 0);
 
+    const genStock = Math.round(Number(product.product_stock != null ? product.product_stock : product.stock) || 0);
+
     let lotsHtml = '';
-    if (hasLots && product.lots && product.lots.length) {
-        const sortedLots = product.lots.slice().sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
+    if (hasLots) {
+        const sortedLots = (product.lots || []).slice().sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
         lotsHtml = `
-            <div class="form-section-title">📦 Agregar a lote existente</div>
+            <div class="form-section-title">📦 ¿Dónde agregar?</div>
             <div class="form-group">
                 <select id="quickLotSelect">
+                    <option value="">📦 Stock general (${genStock} u.)</option>
                     ${sortedLots.map(l => {
                         const exp = l.expiry_date ? new Date(l.expiry_date).toLocaleDateString('es-MX') : '—';
                         const qty = Math.round(Number(l.current_quantity) || 0);
                         return `<option value="${l.id}">${escapeHtml(l.batch_number || 's/lote')} · ${qty} u. · caduca ${exp}</option>`;
                     }).join('')}
+                    <option value="__new__">➕ Crear lote nuevo</option>
                 </select>
             </div>
-            <div style="text-align:center;margin:8px 0;color:#6b7280;font-size:12px">— o crear lote nuevo —</div>
-            <div id="quickNewLotFields">
+            <div id="quickNewLotFields" style="display:none">
                 <div class="form-row">
                     <div class="form-group">
                         <label>Fecha de Caducidad</label>
@@ -3237,6 +3240,15 @@ function showQuickAddStockModal(product) {
             qtyInp.focus();
             qtyInp.select();
         }
+        const lotSelect = document.getElementById('quickLotSelect');
+        if (lotSelect) {
+            const toggleNew = () => {
+                const nf = document.getElementById('quickNewLotFields');
+                if (nf) nf.style.display = lotSelect.value === '__new__' ? 'block' : 'none';
+            };
+            lotSelect.addEventListener('change', toggleNew);
+            toggleNew();
+        }
     }, 50);
 }
 
@@ -3265,39 +3277,41 @@ async function submitQuickAddStock(event, productId, hasLots) {
 
     try {
         let stockMsg = '';
-        if (hasLots) {
-            const lotSelect = document.getElementById('quickLotSelect');
-            const selectedLotId = lotSelect?.value ? parseInt(lotSelect.value) : null;
-            if (selectedLotId) {
-                const product = await apiCall(`/products/${productId}`);
-                const lot = (product.lots || []).find(l => l.id === selectedLotId);
-                if (lot) {
-                    const previous = Math.round(Number(lot.current_quantity) || 0);
-                    const newQty = previous + qty;
-                    await apiCall('/lots/adjust-stock', 'POST', {
-                        lot_id: selectedLotId,
-                        current_quantity: newQty,
-                        reason: 'Agregado rápido (escaneo)',
-                        notes: ''
-                    });
-                    stockMsg = `lote ${lot.batch_number || '#'+selectedLotId}: ${previous} → ${newQty}`;
-                }
-            } else {
+        const lotSelect = document.getElementById('quickLotSelect');
+        const rawVal = lotSelect ? lotSelect.value : '';
+        if (hasLots && rawVal) {
+            if (rawVal === '__new__') {
                 const expiry = document.getElementById('quickExpiry')?.value;
                 const batch = document.getElementById('quickBatch')?.value || '';
-                await apiCall(`/products/${productId}/add-stock`, 'POST', {
+                await apiCall('/lots/add-stock', 'POST', {
+                    product_id: productId,
                     quantity: qty,
                     expiry_date: expiry,
                     batch_number: batch
                 });
-                stockMsg = `+${qty} u. (nuevo lote)`;
+                stockMsg = `+${qty} u. (nuevo lote ${batch || ''})`;
+            } else {
+                const selectedLotId = parseInt(rawVal);
+                const product = await apiCall(`/products/${productId}`);
+                const lot = (product.lots || []).find(l => l.id === selectedLotId);
+                if (lot) {
+                    const previous = Math.round(Number(lot.current_quantity) || 0);
+                    await apiCall('/lots/add-stock', 'POST', {
+                        product_id: productId,
+                        quantity: qty,
+                        lot_id: selectedLotId
+                    });
+                    stockMsg = `lote ${lot.batch_number || '#'+selectedLotId}: ${previous} → ${previous + qty}`;
+                } else {
+                    throw new Error('El lote seleccionado ya no existe');
+                }
             }
         } else {
             const res = await apiCall(`/products/${productId}/add-stock`, 'POST', {
                 quantity: qty,
-                notes: 'Agregado rápido (escaneo)'
+                notes: rawVal === '__new__' || hasLots ? 'Agregado rápido (stock general)' : 'Agregado rápido (escaneo)'
             });
-            stockMsg = `${Math.round(Number(res.previous))} → ${Math.round(Number(res.new))}`;
+            stockMsg = `stock general: ${Math.round(Number(res.previous))} → ${Math.round(Number(res.new))}`;
         }
 
         let priceMsg = '';
@@ -3554,6 +3568,7 @@ function showAddStockModal(productId, productName) {
     const hasLots = product && product.has_lots;
     const currentCost = product ? (Number(product.cost) || 0) : 0;
     const currentPrice = product ? (Number(product.price) || 0) : 0;
+    const generalStock = product ? Math.round(Number(product.product_stock != null ? product.product_stock : product.stock) || 0) : 0;
 
     if (hasLots) {
         const productLots = allLots
@@ -3568,7 +3583,16 @@ function showAddStockModal(productId, productName) {
             ? '<p style="font-size:12px;color:#9ca3af;padding:8px;text-align:center">Este producto aún no tiene lotes. Se creará uno nuevo.</p>'
             : `
                 <label class="lot-pick-option">
-                    <input type="radio" name="lot_choice" value="new" checked>
+                    <input type="radio" name="lot_choice" value="general" checked>
+                    <div class="lot-pick-card">
+                        <div>
+                            <strong>📦 Stock general (${generalStock} pzas)</strong>
+                            <span class="lot-pick-meta">Agrega a la cantidad general del producto, sin lote</span>
+                        </div>
+                    </div>
+                </label>
+                <label class="lot-pick-option">
+                    <input type="radio" name="lot_choice" value="new">
                     <div class="lot-pick-card">
                         <strong>➕ Crear lote nuevo</strong>
                         <span class="lot-pick-meta">Se creará un lote con la fecha/cantidad indicada</span>
@@ -3598,23 +3622,26 @@ function showAddStockModal(productId, productName) {
 
         showModal('➕ Agregar Stock - ' + productName, `
             <form id="addStockForm" onsubmit="submitAddStock(event, ${productId})">
-                <div class="form-section-title">📦 Elige a qué lote agregar</div>
+                <div class="form-section-title">📦 Elige dónde agregar</div>
                 <div class="lot-pick-list">${lotsHtml}</div>
+
+                <div id="addStockQtyFields">
+                    <div class="form-group">
+                        <label>Cantidad *</label>
+                        <input type="number" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
+                    </div>
+                </div>
 
                 <div id="addStockNewFields">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Cantidad *</label>
-                            <input type="number" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
-                        </div>
-                        <div class="form-group">
                             <label>Fecha de Caducidad *</label>
                             <input type="date" name="expiry_date" value="${expiryStr}" required>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Número de Lote (opcional)</label>
-                        <input type="text" name="batch_number" placeholder="LOTE-${Date.now().toString().slice(-6)}">
+                        <div class="form-group">
+                            <label>Número de Lote (opcional)</label>
+                            <input type="text" name="batch_number" placeholder="LOTE-${Date.now().toString().slice(-6)}">
+                        </div>
                     </div>
                 </div>
 
@@ -3646,7 +3673,11 @@ function showAddStockModal(productId, productName) {
                 const choice = form.querySelector('input[name="lot_choice"]:checked')?.value;
                 const newFields = document.getElementById('addStockNewFields');
                 const isNew = choice === 'new' || !choice;
-                if (newFields) newFields.style.display = isNew ? 'block' : 'none';
+                if (newFields) {
+                    newFields.style.display = isNew ? 'block' : 'none';
+                    const exp = form.querySelector('input[name="expiry_date"]');
+                    if (exp) exp.required = isNew;
+                }
             };
             form.querySelectorAll('input[name="lot_choice"]').forEach(r => r.addEventListener('change', toggle));
             toggle();
@@ -3690,22 +3721,42 @@ async function submitAddStock(event, productId) {
     const form = event.target;
     const choice = form.querySelector('input[name="lot_choice"]:checked')?.value;
     const qty = Math.round(parseFloat(form.quantity.value));
-    const data = {
-        product_id: productId,
-        quantity: qty,
-        expiry_date: form.expiry_date?.value || null,
-        batch_number: form.batch_number?.value || null,
-        cost: form.cost?.value || null,
-        price: form.price?.value || null
-    };
-    if (choice && choice !== 'new') data.lot_id = parseInt(choice);
+    const newCost = form.cost?.value;
+    const newPrice = form.price?.value;
+    let priceUpdated = false, costUpdated = false;
+    const updates = [];
     try {
-        const result = await apiCall('/lots/add-stock', 'POST', data);
+        let msg = '';
+        if (choice === 'general') {
+            const res = await apiCall(`/products/${productId}/add-stock`, 'POST', {
+                quantity: qty,
+                notes: 'Agregado a stock general'
+            });
+            msg = `✓ Stock general: ${res.previous} → ${res.new}`;
+            if (newCost !== '' && newCost !== null && newCost !== undefined) {
+                await apiCall(`/products/${productId}`, 'PUT', { cost: parseFloat(newCost) });
+                costUpdated = true;
+            }
+            if (newPrice !== '' && newPrice !== null && newPrice !== undefined) {
+                await apiCall(`/products/${productId}`, 'PUT', { price: parseFloat(newPrice) });
+                priceUpdated = true;
+            }
+        } else {
+            const data = {
+                product_id: productId,
+                quantity: qty,
+                expiry_date: form.expiry_date?.value || null,
+                batch_number: form.batch_number?.value || null,
+                cost: newCost || null,
+                price: newPrice || null
+            };
+            if (choice && choice !== 'new') data.lot_id = parseInt(choice);
+            const result = await apiCall('/lots/add-stock', 'POST', data);
+            msg = '✓ ' + result.message;
+        }
         closeModal();
-        let msg = '✓ ' + result.message;
-        const updates = [];
-        if (result.cost_updated) updates.push('costo');
-        if (result.price_updated) updates.push('precio');
+        if (costUpdated) updates.push('costo');
+        if (priceUpdated) updates.push('precio');
         if (updates.length) msg += ` (precios actualizados: ${updates.join(', ')})`;
         showToast(msg, 'success');
         await Promise.all([loadInventory(), loadLots(true), loadProductsTable(), loadProducts()]);

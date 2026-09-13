@@ -145,6 +145,7 @@ def get_inventory():
             d['effective_stock'] = lots_stock + product_stock
             d['has_lots'] = lots_count > 0
             d['lots_stock'] = lots_stock
+            d['product_stock'] = product_stock
             result.append(d)
         return jsonify(result), 200
     except Exception as e:
