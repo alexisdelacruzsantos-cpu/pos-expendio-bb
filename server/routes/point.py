@@ -302,7 +302,7 @@ def create_order():
             'expiration_time': 'PT10M',
             'transactions': {'payments': [{'amount': f'{amount:.2f}'}]},
             'config': {
-                'point': {'terminal_id': terminal_id, 'print_on_terminal': 'yes_ticket'},
+                'point': {'terminal_id': terminal_id, 'print_on_terminal': 'seller_ticket'},
                 'payment_method': {'default_type': data.get('default_type', 'debit_card')},
             },
             'description': 'Venta POS Expendio BB',
