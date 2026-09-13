@@ -6926,9 +6926,12 @@ function mpOrderIsApproved(order) {
     const paymentsRaw = (order.transactions && order.transactions.payments) || order.payments || [];
     const pay = paymentsRaw[0] || {};
     const payStatus = (pay.status || '').toLowerCase();
-    const successStates = ['approved', 'accredited', 'paid'];
-    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
+    const payDetail = (pay.status_detail || '').toLowerCase();
+    const successStates = ['processed', 'approved', 'accredited', 'paid'];
+    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired', 'refunded'];
+    const successDetail = ['accredited', 'processed', 'approved'];
     return successStates.indexOf(payStatus) !== -1 ||
+           successDetail.indexOf(payDetail) !== -1 ||
            successStates.indexOf(status) !== -1 ||
            (status === 'closed' && failStates.indexOf(payStatus) === -1);
 }
@@ -6945,15 +6948,21 @@ async function mpEnsureConnected() {
 function mpStatusText(status, detail) {
     const d = (detail || '').toLowerCase();
     if (d.indexOf('insufficient') !== -1 || d.indexOf('empty_account') !== -1) return 'Saldo insuficiente en la tarjeta';
-    if (d.indexOf('expired') !== -1) return 'Tarjeta vencida';
-    if (d.indexOf('blocked') !== -1) return 'Tarjeta bloqueada';
-    if (d.indexOf('disabled') !== -1 || d.indexOf('inhabilitad') !== -1) return 'Tarjeta inhabilitada';
+    if (d.indexOf('rejected_by_issuer') !== -1) return 'Rechazada por el banco emisor';
+    if (d.indexOf('high_risk') !== -1) return 'Rechazada por control de riesgo';
+    if (d.indexOf('amount_limit') !== -1) return 'Supera el límite de la tarjeta';
+    if (d.indexOf('card_disabled') !== -1 || d.indexOf('blocked') !== -1 || d.indexOf('inhabilitad') !== -1 || d.indexOf('disabled') !== -1) return 'Tarjeta inhabilitada';
     if (d.indexOf('max_attempt') !== -1) return 'Demasiados intentos fallidos';
     if (d.indexOf('bad_filled') !== -1 || d.indexOf('invalid') !== -1) return 'Datos de tarjeta no válidos';
+    if (d.indexOf('processing_error') !== -1) return 'Error de procesamiento en el terminal';
     if (d.indexOf('call_for_authorize') !== -1) return 'Se requiere autorización del banco';
+    if (d.indexOf('check_on_terminal') !== -1) return 'Confirma el pago en el terminal';
+    if (d.indexOf('waiting_payment') !== -1) return 'Esperando el pago en el terminal';
+    if (d.indexOf('in_review') !== -1) return 'El pago está en revisión';
+    if (status === 'action_required') return 'Acción requerida en el terminal';
+    if (d.indexOf('expired') !== -1 || d.indexOf('expiration') !== -1 || status === 'expired') return 'Tiempo de espera agotado';
     if (d.indexOf('other_reason') !== -1) return 'Rechazada por el banco';
     if (d.indexOf('cancel') !== -1) return 'Cobro cancelado';
-    if (d.indexOf('expiration') !== -1 || status === 'expired') return 'Tiempo de espera agotado';
     if (status === 'failed' || d.indexOf('failed') !== -1) return 'Falló el pago en el terminal';
     return 'Pago rechazado';
 }
@@ -7018,7 +7027,7 @@ async function mpChargeFlow(cardAmount) {
                     const payDetail = pay.status_detail || '';
                     const hint = document.getElementById('mpWaitHint');
 
-                    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
+                    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired', 'refunded'];
 
                     if (isApproved) {
                         if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
@@ -7046,7 +7055,7 @@ async function mpChargeFlow(cardAmount) {
                         if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
                         return;
                     }
-                    if (payStatus === 'in_process' || payStatus === 'pending' || payStatus === 'authorized') {
+                    if (payStatus === 'in_process' || payStatus === 'pending' || payStatus === 'authorized' || status === 'at_terminal') {
                         if (hint) hint.textContent = '⏳ Procesando pago, espere…';
                     }
                     if (hint && (status === 'open')) hint.textContent = 'Acerque la tarjeta al terminal…';
