@@ -3155,6 +3155,14 @@ document.addEventListener('DOMContentLoaded', () => {
             let msg = 'Código no encontrado';
             try { msg = JSON.parse(err.message).error || msg; } catch {}
             showToast(msg, 'warning');
+            inp.value = '';
+            showConfirmDialog({
+                title: '🤔 Producto no encontrado',
+                message: `El código <strong>${escapeHtml(v)}</strong> no existe en el sistema. ¿Quieres registrarlo como producto nuevo?`,
+                confirmText: '📦 Registrarlo',
+                cancelText: 'Cancelar',
+                onConfirm: () => showAddProductModal(v)
+            });
         }
     });
 });
@@ -9472,12 +9480,13 @@ function showErrorDialog(message) {
     okBtn?.addEventListener('click', () => closeModal());
 }
 
-async function showAddProductModal() {
+async function showAddProductModal(prefillBarcode) {
     let catOptions = '<option value="">Sin categoría</option>';
     try {
         const data = await apiCall('/settings/');
         catOptions += data.categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
     } catch (_) {}
+    const barcodeAttr = prefillBarcode ? `value="${escapeHtml(prefillBarcode)}"` : 'placeholder="Escanea o escribe el código"';
 
     showModal('Registrar Nuevo Producto', `
         <form id="addProductForm" onsubmit="saveProduct(event)">
@@ -9492,7 +9501,7 @@ async function showAddProductModal() {
                 </div>
                 <div class="form-group">
                     <label>Código de Barras</label>
-                    <input type="text" name="barcode" placeholder="Escanea o escribe el código" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    <input type="text" name="barcode" ${barcodeAttr} autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </div>
             </div>
             <div class="form-row">
@@ -9530,6 +9539,11 @@ async function showAddProductModal() {
     };
     form.price.addEventListener('input', updateGainPreview);
     form.cost.addEventListener('input', updateGainPreview);
+
+    setTimeout(() => {
+        const nameInp = document.getElementById('addProductForm')?.querySelector('input[name="name"]');
+        if (nameInp) nameInp.focus();
+    }, 50);
 }
 
 async function saveProduct(e) {
@@ -9551,6 +9565,8 @@ async function saveProduct(e) {
         closeModal();
         loadProductsTable();
         loadProducts();
+        loadLots(true);
+        loadInventory();
     } catch (error) {
         let msg = 'Error al guardar producto';
         try {
