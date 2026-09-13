@@ -2241,6 +2241,75 @@ let productsSort = { key: 'name', dir: 'asc' };
 let productsStockFilter = 'all';
 let productsViewMode = localStorage.getItem('pos_products_view') || 'cards';
 
+const PRODUCTS_SEARCH_DEBOUNCE_MS = 60;
+let productsSearchTimer = null;
+
+function buildProductSearchKey(p) {
+    if (p._searchKey === undefined) {
+        p._searchKey = ((p.name || '') + '\u0000' + (p.barcode || '') + '\u0000' + (p.category_name || '')).toLowerCase();
+    }
+    return p._searchKey;
+}
+
+function getProductSearchRows() {
+    const q = (document.getElementById('productSearch')?.value || '').toLowerCase().trim();
+    const { key, dir } = productsSort;
+    const getVal = p => {
+        switch (key) {
+            case 'name': return p.name || '';
+            case 'category': return p.category_name || '';
+            case 'barcode': return p.barcode || '';
+            default: {
+                const v = p[key];
+                return typeof v === 'number' ? v : parseFloat(v) || 0;
+            }
+        }
+    };
+    const rows = productsTableData.filter(p => {
+        const matchCat = !productsCategoryFilter || String(p.category_id) === String(productsCategoryFilter);
+        const matchQ = !q || buildProductSearchKey(p).includes(q);
+        const stock = Number(p.effective_stock) || 0;
+        const matchStock = productsStockFilter === 'all' ||
+            (productsStockFilter === 'in_stock' && stock > 0) ||
+            (productsStockFilter === 'out_stock' && stock <= 0);
+        return matchCat && matchQ && matchStock;
+    });
+    rows.sort((a, b) => {
+        const va = getVal(a);
+        const vb = getVal(b);
+        const cmp = (typeof va === 'string' || typeof vb === 'string')
+            ? String(va).localeCompare(String(vb), 'es')
+            : (va - vb);
+        return dir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+}
+
+function scheduleProductsSearchRender() {
+    if (productsSearchTimer) clearTimeout(productsSearchTimer);
+    productsSearchTimer = setTimeout(() => {
+        productsSearchTimer = null;
+        renderVisibleProducts();
+    }, PRODUCTS_SEARCH_DEBOUNCE_MS);
+}
+
+function cancelProductsSearchRender() {
+    if (productsSearchTimer) {
+        clearTimeout(productsSearchTimer);
+        productsSearchTimer = null;
+    }
+}
+
+function renderVisibleProducts() {
+    cancelProductsSearchRender();
+    if (productsViewMode === 'table') {
+        renderProductsTable();
+    } else {
+        renderProductsCards();
+    }
+    updateSortIndicators();
+}
+
 function switchProductsView(mode) {
     productsViewMode = mode;
     localStorage.setItem('pos_products_view', mode);
@@ -2250,7 +2319,7 @@ function switchProductsView(mode) {
     const tableEl = document.getElementById('productsSubviewTable');
     if (cardsEl) cardsEl.style.display = mode === 'cards' ? 'block' : 'none';
     if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
-    if (mode === 'cards') renderProductsCards();
+    renderVisibleProducts();
 }
 
 function setProductsStockFilter(filter) {
@@ -2258,42 +2327,13 @@ function setProductsStockFilter(filter) {
     document.querySelectorAll('#productsStockChips .inv-chip').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === filter);
     });
-    renderProductsCards();
-    renderProductsTable();
+    renderVisibleProducts();
 }
 
 function renderProductsCards() {
     const grid = document.getElementById('productsCardGrid');
     if (!grid) return;
-    const q = (document.getElementById('productSearch')?.value || '').toLowerCase().trim();
-    let rows = productsTableData.filter(p => {
-        const matchCat = !productsCategoryFilter || String(p.category_id) === String(productsCategoryFilter);
-        const matchQ = !q ||
-            (p.name || '').toLowerCase().includes(q) ||
-            (p.barcode || '').toLowerCase().includes(q) ||
-            (p.category_name || '').toLowerCase().includes(q);
-        const stock = Number(p.effective_stock) || 0;
-        const matchStock = productsStockFilter === 'all' ||
-            (productsStockFilter === 'in_stock' && stock > 0) ||
-            (productsStockFilter === 'out_stock' && stock <= 0);
-        return matchCat && matchQ && matchStock;
-    });
-
-    const { key, dir } = productsSort;
-    rows.sort((a, b) => {
-        const va = key === 'name' ? a.name || '' :
-                   key === 'category' ? a.category_name || '' :
-                   key === 'barcode' ? a.barcode || '' :
-                   (typeof a[key] === 'number' ? a[key] : parseFloat(a[key]) || 0);
-        const vb = key === 'name' ? b.name || '' :
-                   key === 'category' ? b.category_name || '' :
-                   key === 'barcode' ? b.barcode || '' :
-                   (typeof b[key] === 'number' ? b[key] : parseFloat(b[key]) || 0);
-        const cmp = (typeof va === 'string' || typeof vb === 'string')
-            ? String(va).localeCompare(String(vb), 'es')
-            : va - vb;
-        return dir === 'asc' ? cmp : -cmp;
-    });
+    const rows = getProductSearchRows();
 
     const count = document.getElementById('productsCount');
     if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`;
@@ -2358,12 +2398,9 @@ async function loadProductsTable() {
             const cost = parseFloat(p.cost) || 0;
             const ganancia = price - cost;
             const margen = price > 0 ? (ganancia / price) * 100 : 0;
-            return { ...p, ganancia, margen };
+            return { ...p, ganancia, margen, _searchKey: ((p.name || '') + '\u0000' + (p.barcode || '') + '\u0000' + (p.category_name || '')).toLowerCase() };
         });
         populateCategoryFilter();
-        renderProductsCards();
-        renderProductsTable();
-        updateSortIndicators();
         switchProductsView(productsViewMode);
     } catch (error) {
         showToast('Error al cargar productos', 'error');
@@ -2417,41 +2454,7 @@ function populateCategoryFilter() {
 function renderProductsTable() {
     const tbody = document.getElementById('productsTableBody');
     if (!tbody) return;
-    const q = (document.getElementById('productSearch')?.value || '').toLowerCase().trim();
-
-    let rows = productsTableData.filter(p => {
-        const matchCat = !productsCategoryFilter || String(p.category_id) === String(productsCategoryFilter);
-        const matchQ = !q ||
-            (p.name || '').toLowerCase().includes(q) ||
-            (p.barcode || '').toLowerCase().includes(q) ||
-            (p.category_name || '').toLowerCase().includes(q);
-        const stock = Number(p.effective_stock) || 0;
-        const matchStock = productsStockFilter === 'all' ||
-            (productsStockFilter === 'in_stock' && stock > 0) ||
-            (productsStockFilter === 'out_stock' && stock <= 0);
-        return matchCat && matchQ && matchStock;
-    });
-
-    const { key, dir } = productsSort;
-    const getVal = p => {
-        switch (key) {
-            case 'name': return p.name || '';
-            case 'category': return p.category_name || '';
-            case 'barcode': return p.barcode || '';
-            default: {
-                const v = p[key];
-                return typeof v === 'number' ? v : parseFloat(v) || 0;
-            }
-        }
-    };
-    rows.sort((a, b) => {
-        const va = getVal(a);
-        const vb = getVal(b);
-        let cmp = (typeof va === 'string' || typeof vb === 'string')
-            ? String(va).localeCompare(String(vb), 'es')
-            : (va - vb);
-        return dir === 'asc' ? cmp : -cmp;
-    });
+    const rows = getProductSearchRows();
 
     const count = document.getElementById('productsCount');
     if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`;
@@ -2514,16 +2517,13 @@ function renderProductRow(p) {
 }
 
 function searchProducts() {
-    renderProductsCards();
-    renderProductsTable();
-    updateSortIndicators();
+    scheduleProductsSearchRender();
 }
 
 function filterProductsByCategory() {
     const sel = document.getElementById('productCategoryFilter');
     productsCategoryFilter = sel ? sel.value : '';
-    renderProductsCards();
-    renderProductsTable();
+    renderVisibleProducts();
 }
 
 function sortProducts(key) {
@@ -2532,9 +2532,7 @@ function sortProducts(key) {
     } else {
         productsSort = { key, dir: 'asc' };
     }
-    renderProductsCards();
-    renderProductsTable();
-    updateSortIndicators();
+    renderVisibleProducts();
 }
 
 function updateSortIndicators() {
