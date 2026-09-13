@@ -10,6 +10,10 @@ let cartHydrated = false;
 const CART_STORAGE_KEY = 'pos_cart_v1';
 let paymentMethod = 'cash';
 let activeTerminal = null;
+let mpActiveOrderId = null;
+let mpPollTimer = null;
+let mpWaitCanceled = false;
+let mpResolve = null;
 const MP_IVA_RATE = 0.16;
 
 function getMPFeeRate() {
@@ -6729,6 +6733,145 @@ function renderCardFee(gross, net, fee, feeRate) {
     }
 }
 
+function mpShowWaitModal(amount) {
+    mpWaitCanceled = false;
+    let ov = document.getElementById('mpWaitOverlay');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'mpWaitOverlay';
+        ov.className = 'mp-wait-overlay';
+        document.body.appendChild(ov);
+    }
+    ov.innerHTML = `
+        <div class="mp-wait-box">
+            <div class="mp-wait-icon">💳</div>
+            <div class="mp-wait-title">Cobrando con terminal Point</div>
+            <div class="mp-wait-amount">$${money(amount)}</div>
+            <div class="mp-wait-hint" id="mpWaitHint">Acerque la tarjeta al terminal…</div>
+            <button type="button" class="btn btn-danger mp-wait-cancel" id="mpCancelBtn" onclick="mpCancelCurrentOrder()">✕ Cancelar cobro</button>
+        </div>`;
+    ov.style.display = 'flex';
+    const cardBtn = document.querySelector('[data-method="card"]');
+    if (cardBtn) cardBtn.disabled = true;
+    const mixedBtn = document.querySelector('[data-method="mixed"]');
+    if (mixedBtn) mixedBtn.disabled = true;
+}
+
+function mpHideWaitModal() {
+    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+    const ov = document.getElementById('mpWaitOverlay');
+    if (ov) ov.style.display = 'none';
+    const cardBtn = document.querySelector('[data-method="card"]');
+    if (cardBtn) cardBtn.disabled = false;
+    const mixedBtn = document.querySelector('[data-method="mixed"]');
+    if (mixedBtn) mixedBtn.disabled = false;
+}
+
+async function mpCancelCurrentOrder() {
+    if (!document.getElementById('mpWaitOverlay') || document.getElementById('mpWaitOverlay').style.display !== 'flex') {
+        return;
+    }
+    mpWaitCanceled = true;
+    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+    const orderId = mpActiveOrderId;
+    mpActiveOrderId = null;
+    if (orderId) {
+        try { await apiCall('/mp/orders/' + orderId + '/cancel', 'POST'); } catch (e) {}
+    }
+    const resolve = mpResolve;
+    mpResolve = null;
+    mpHideWaitModal();
+    if (resolve) resolve({ approved: false, reason: 'cancelado' });
+}
+
+async function mpEnsureConnected() {
+    try {
+        const st = await apiCall('/mp/charge-status');
+        return !!(st && st.connected && st.terminal_id);
+    } catch (e) {
+        return false;
+    }
+}
+
+async function mpChargeFlow(cardAmount) {
+    try {
+        const created = await apiCall('/mp/orders', 'POST', {
+            amount: cardAmount,
+            external_reference: 'POS-' + Date.now() + '-' + Math.floor(Math.random() * 1e6)
+        });
+        const orderId = created.order_id;
+        if (!orderId) throw new Error('No se obtuvo id de la orden de Mercado Pago');
+        mpActiveOrderId = orderId;
+
+        return new Promise((resolve) => {
+            mpResolve = resolve;
+            mpShowWaitModal(cardAmount);
+            const start = Date.now();
+            const POLL_MS = 2500;
+            const MAX_WAIT_MS = 10 * 60 * 1000;
+
+            const tick = async () => {
+                if (mpWaitCanceled || !mpActiveOrderId) return;
+                if (Date.now() - start > MAX_WAIT_MS) {
+                    const r = mpResolve; mpResolve = null;
+                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                    mpActiveOrderId = null;
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'timeout' }); }, 100);
+                    return;
+                }
+                let order = null;
+                try { order = await apiCall('/mp/orders/' + orderId, 'GET'); } catch (e) {}
+                if (!order) { mpPollTimer = setTimeout(tick, POLL_MS); return; }
+                if (!mpActiveOrderId) return;
+
+                const status = order.status;
+                const pay = (order.transactions && order.transactions.payments && order.transactions.payments[0]) || {};
+                const payStatus = pay.status;
+                const hint = document.getElementById('mpWaitHint');
+
+                if (status === 'approved' || payStatus === 'approved') {
+                    if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
+                    const r = mpResolve; mpResolve = null;
+                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                    mpActiveOrderId = null;
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: true, order_id: orderId }); }, 600);
+                    return;
+                }
+                if (payStatus === 'rejected' || status === 'rejected') {
+                    if (hint) hint.textContent = '✗ Pago rechazado';
+                    const r = mpResolve; mpResolve = null;
+                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                    mpActiveOrderId = null;
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected' }); }, 800);
+                    return;
+                }
+                if (status === 'expired' || status === 'canceled' || status === 'cancelled') {
+                    if (hint) hint.textContent = '⏱ Tiempo de espera agotado';
+                    const r = mpResolve; mpResolve = null;
+                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                    mpActiveOrderId = null;
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'expired' }); }, 800);
+                    return;
+                }
+                if (payStatus === 'in_process' || payStatus === 'pending') {
+                    if (hint) hint.textContent = '⏳ Procesando pago, espere…';
+                }
+                if (hint && (status === 'open')) hint.textContent = 'Acerque la tarjeta al terminal…';
+                mpPollTimer = setTimeout(tick, POLL_MS);
+            };
+
+            try {
+                tick();
+            } catch (e) {
+                const r = mpResolve; mpResolve = null;
+                if (r) r({ approved: false, reason: 'error' });
+            }
+        });
+    } catch (e) {
+        return { approved: false, reason: 'error' };
+    }
+}
+
 async function confirmPayment() {
     if (isProcessingSale) {
         showToast('El cobro ya está en proceso…', 'info');
@@ -6752,6 +6895,29 @@ async function confirmPayment() {
         showToast('El monto recibido debe ser igual o mayor al total', 'error');
         document.getElementById('payCashAmount')?.focus();
         return;
+    }
+
+    const usesMp = (paymentMethod === 'card' || paymentMethod === 'mixed') && cardAmount > 0.005;
+
+    if (usesMp) {
+        const connected = await mpEnsureConnected();
+        if (!connected) {
+            showToast('La terminal de Mercado Pago no está conectada. Vincúlala en Ajustes → Mercado Pago', 'error');
+            return;
+        }
+        isProcessingSale = true;
+        const procBtnMp = document.getElementById('confirmPayBtn');
+        if (procBtnMp) { procBtnMp.disabled = true; procBtnMp.textContent = 'COBRANDO…'; }
+        const payRes = await mpChargeFlow(cardAmount);
+        isProcessingSale = false;
+        if (procBtnMp) { procBtnMp.disabled = false; procBtnMp.textContent = '✓ CONFIRMAR (Enter)'; }
+        if (!payRes.approved) {
+            if (payRes.reason === 'rejected') showToast('El pago con tarjeta fue rechazado', 'error');
+            else if (payRes.reason === 'timeout' || payRes.reason === 'expired') showToast('El cobro en el terminal no se completó a tiempo', 'error');
+            else if (payRes.reason === 'error') showToast('Ocurrió un error con el terminal de Mercado Pago', 'error');
+            else showToast('Cobro cancelado', 'info');
+            return;
+        }
     }
 
     const hasOutOfStock = cart.some(i => i.out_of_stock);

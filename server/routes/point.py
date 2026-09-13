@@ -265,6 +265,21 @@ def disconnect():
 
 # ---------- Órdenes de pago (cobro físico) ----------
 
+@point_bp.route('/charge-status', methods=['GET'])
+@jwt_required()
+@require_permission('sales', 'view')
+def charge_status():
+    """Estado mínimo de conexión para que el cajero pueda cobrar con el Point."""
+    try:
+        token = _valid_token()
+        terminal_id = _get_setting('mp_terminal_id')
+        return jsonify({
+            'connected': bool(token and terminal_id),
+            'terminal_id': terminal_id or '',
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @point_bp.route('/orders', methods=['POST'])
 @jwt_required()
 @require_permission('sales', 'create')
