@@ -6197,7 +6197,8 @@ function renderCart() {
         `;
     }).join('');
 
-    if (countEl) countEl.textContent = cart.length + ' producto' + (cart.length !== 1 ? 's' : '');
+    const totalUnits = cart.reduce((sum, item) => sum + (Math.max(0, Number(item.quantity) || 0)), 0);
+    if (countEl) countEl.textContent = totalUnits + ' producto' + (totalUnits !== 1 ? 's' : '');
     const btnClear = document.getElementById('posClearCartBtn');
     if (btnClear) btnClear.style.display = cart.length > 0 ? 'inline-block' : 'none';
 
