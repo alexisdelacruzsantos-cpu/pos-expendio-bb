@@ -7191,6 +7191,11 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
 /* Subtle hover effects on cards */
 .inv-card,
 .product-card {
+    animation: none;
+}
+
+.inv-card.reveal,
+.product-card.reveal {
     animation: cardFadeIn 0.2s ease;
 }
 

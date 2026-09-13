@@ -1140,9 +1140,13 @@ function navigateTo(section) {
 function setupSectionShortcuts() {
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key !== 'F2' && e.key !== 'F4') return;
         const activeEl = document.activeElement;
-        const tag = activeEl?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        const payInput = activeEl && (activeEl.id === 'payCashAmount' || activeEl.id === 'payCardAmount');
+        if (payInput) return;
+        const modalActive = document.getElementById('modalOverlay')?.classList.contains('active');
+        const paymentOpen = document.getElementById('paymentOverlay')?.style.display === 'flex';
+        if (modalActive || paymentOpen) return;
 
         if (e.key === 'F2') {
             e.preventDefault();
@@ -2330,6 +2334,9 @@ function setProductsStockFilter(filter) {
     renderVisibleProducts();
 }
 
+const PRODUCTS_CHUNK = 60;
+let productsRenderId = 0;
+
 function renderProductsCards() {
     const grid = document.getElementById('productsCardGrid');
     if (!grid) return;
@@ -2342,19 +2349,36 @@ function renderProductsCards() {
         grid.innerHTML = `<div class="inv-help"><div class="inv-help-icon"><svg class="icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div><p class="inv-help-text">No se encontraron productos</p></div>`;
         return;
     }
-    grid.innerHTML = rows.map(p => renderProductCard(p)).join('');
+    const id = ++productsRenderId;
+    const small = rows.length <= PRODUCTS_CHUNK;
+    let i = 0;
+    const paint = () => {
+        if (id !== productsRenderId) return;
+        const next = rows.slice(i, i + PRODUCTS_CHUNK);
+        if (i === 0) {
+            grid.innerHTML = next.map(p => renderProductCard(p, small)).join('');
+        } else {
+            grid.insertAdjacentHTML('beforeend', next.map(p => renderProductCard(p, false)).join(''));
+        }
+        i += PRODUCTS_CHUNK;
+        if (i < rows.length) {
+            setTimeout(paint, 0);
+        }
+    };
+    paint();
 }
 
-function renderProductCard(p) {
+function renderProductCard(p, reveal) {
     const stock = Number(p.effective_stock) || 0;
     const cost = Number(p.cost) || 0;
     const price = Number(p.price) || 0;
     const marginClass = p.ganancia >= 0 ? 'pos' : 'neg';
     const safeName = escapeJs(p.name);
     const catColor = p.category_color || '#6b7280';
+    const extraClass = reveal ? ' reveal' : '';
 
     return `
-        <div class="product-card">
+        <div class="product-card${extraClass}">
             <div class="product-card-head">
                 <div>
                     <div class="product-card-name">${escapeHtml(p.name || '')}</div>
@@ -2463,8 +2487,22 @@ function renderProductsTable() {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#6b7280;padding:20px;">No se encontraron productos</td></tr>`;
         return;
     }
-
-    tbody.innerHTML = rows.map(p => renderProductRow(p)).join('');
+    const id = ++productsRenderId;
+    let i = 0;
+    const paint = () => {
+        if (id !== productsRenderId) return;
+        const next = rows.slice(i, i + PRODUCTS_CHUNK);
+        if (i === 0) {
+            tbody.innerHTML = next.map(p => renderProductRow(p)).join('');
+        } else {
+            tbody.insertAdjacentHTML('beforeend', next.map(p => renderProductRow(p)).join(''));
+        }
+        i += PRODUCTS_CHUNK;
+        if (i < rows.length) {
+            setTimeout(paint, 0);
+        }
+    };
+    paint();
 }
 
 function renderProductRow(p) {
