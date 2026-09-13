@@ -795,7 +795,10 @@
                         <button class="btn btn-sm" onclick="setSalesRange('today')">Hoy</button>
                         <button class="btn btn-sm" onclick="setSalesRange('yesterday')">Ayer</button>
                         <button class="btn btn-sm" onclick="setSalesRange('week')">7 días</button>
-                        <button class="btn btn-sm" onclick="setSalesRange('month')">Mes</button>
+                        <button class="btn btn-sm" onclick="setSalesWeek()">Semana Actual</button>
+                        <button class="btn btn-sm" onclick="setSalesMonth()">Mes Actual</button>
+                        <button class="btn btn-sm" onclick="setSalesLastMonth()">Mes Anterior</button>
+                        <button class="btn btn-sm" onclick="setSalesYear()">Año Actual</button>
                         <span style="flex:1"></span>
                         <button class="btn btn-sm" onclick="exportSalesCsv()">⬇ CSV</button>
                         <button class="btn btn-sm" onclick="exportSalesPdf()">⬇ PDF</button>
@@ -816,40 +819,37 @@
                             <div class="report-value" id="rpUnits">0</div>
                             <div class="report-detail">suma de piezas</div>
                         </div>
-                        <div class="report-card">
-                            <h3>📈 Utilidad bruta</h3>
-                            <div class="report-value" id="rpProfit">$0.00</div>
-                            <div class="report-detail">ventas menos costo</div>
-                        </div>
-                    </div>
+<div class="report-card">
+                <h3>📈 Utilidad bruta</h3>
+                <div class="report-value" id="rpProfit">$0.00</div>
+                <div class="report-detail" id="rpMargin">margen 0.00%</div>
+            </div>
+        </div>
 
-                    <h4 style="margin:16px 0 8px">Por método de pago</h4>
-                    <table class="data-table" style="max-width:520px">
-                        <thead>
-                            <tr><th>Método</th><th>Ventas</th><th>Monto</th></tr>
-                        </thead>
-                        <tbody id="rpPaymentsBody"></tbody>
-                    </table>
+        <h4 style="margin:16px 0 8px">Ventas por día</h4>
+        <table class="data-table" style="max-width:600px">
+            <thead>
+                <tr><th>Día</th><th>Fecha</th><th>Ventas</th><th>Total</th></tr>
+            </thead>
+            <tbody id="rpByDayBody"></tbody>
+        </table>
 
-                    <h4 style="margin:20px 0 8px">Ventas por cajero</h4>
-                    <table class="data-table" style="max-width:520px">
-                        <thead>
-                            <tr><th>Cajero</th><th>Ventas</th><th>Monto</th></tr>
-                        </thead>
-                        <tbody id="rpCashiersBody"></tbody>
-                    </table>
+        <h4 style="margin:20px 0 8px">Ventas por departamento</h4>
+        <table class="data-table" style="max-width:600px">
+            <thead>
+                <tr><th>Departamento</th><th>Ventas</th><th>Unidades</th><th>Ingresos</th><th>Utilidad</th></tr>
+            </thead>
+            <tbody id="rpByDeptSalesBody"></tbody>
+        </table>
 
-                    <h4 style="margin:20px 0 8px">Top productos</h4>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>#</th><th>Producto</th><th>Categoría</th>
-                                <th>Unidades</th><th>Ingresos</th><th>Costo</th><th>Utilidad</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rpTopProductsBody"></tbody>
-                    </table>
-                </div>
+        <h4 style="margin:20px 0 8px">Ganancia por departamento</h4>
+        <table class="data-table">
+            <thead>
+                <tr><th>Departamento</th><th>Ingresos</th><th>Costo</th><th>Ganancia</th></tr>
+            </thead>
+            <tbody id="rpByDeptProfitBody"></tbody>
+        </table>
+    </div>
 
                 <!-- INVENTARIO -->
                 <div class="report-content" id="reportInventoryTab" style="display:none">

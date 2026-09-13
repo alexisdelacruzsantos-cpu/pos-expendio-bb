@@ -2777,6 +2777,40 @@ function setSalesRange(kind) {
     applySalesReport();
 }
 
+function setSalesWeek() {
+    const end = new Date();
+    const dow = end.getDay(); // 0=domingo
+    const start = new Date(end);
+    start.setDate(start.getDate() - (dow === 0 ? 6 : dow - 1)); // lunes
+    document.getElementById('salesDateFrom').value = localDateStr(start);
+    document.getElementById('salesDateTo').value = localDateStr(end);
+    applySalesReport();
+}
+
+function setSalesMonth() {
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    document.getElementById('salesDateFrom').value = localDateStr(start);
+    document.getElementById('salesDateTo').value = localDateStr(end);
+    applySalesReport();
+}
+
+function setSalesLastMonth() {
+    const end = new Date(new Date().getFullYear(), new Date().getMonth(), 0);
+    const start = new Date(end.getFullYear(), end.getMonth() - 1, 1);
+    document.getElementById('salesDateFrom').value = localDateStr(start);
+    document.getElementById('salesDateTo').value = localDateStr(end);
+    applySalesReport();
+}
+
+function setSalesYear() {
+    const end = new Date();
+    const start = new Date(end.getFullYear(), 0, 1);
+    document.getElementById('salesDateFrom').value = localDateStr(start);
+    document.getElementById('salesDateTo').value = localDateStr(end);
+    applySalesReport();
+}
+
 function applySalesReport() {
     loadSalesReport();
 }
@@ -2802,6 +2836,51 @@ function renderSalesReport(data) {
     document.getElementById('rpMaxTicket').textContent = 'máx $' + Number(s.max_ticket || 0).toFixed(2);
     document.getElementById('rpUnits').textContent = s.units || 0;
     document.getElementById('rpProfit').textContent = '$' + Number(s.profit || 0).toFixed(2);
+    document.getElementById('rpMargin').textContent = 'margen ' + Number(s.margin_pct || 0).toFixed(2) + '%';
+
+    const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const byDayBody = document.getElementById('rpByDayBody');
+    if (!data.by_day || !data.by_day.length) {
+        byDayBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
+    } else {
+        byDayBody.innerHTML = data.by_day.map(d => {
+            const dt = new Date(d.day + 'T00:00:00');
+            const name = dayNames[dt.getDay() === 0 ? 6 : dt.getDay() - 1];
+            return `<tr>
+                <td><strong>${name}</strong></td>
+                <td>${d.day}</td>
+                <td>${d.sales}</td>
+                <td>$${Number(d.total || 0).toFixed(2)}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    const deptSalesBody = document.getElementById('rpByDeptSalesBody');
+    if (!data.by_department || !data.by_department.length) {
+        deptSalesBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
+    } else {
+        deptSalesBody.innerHTML = data.by_department.map(d => `
+            <tr>
+                <td>${escapeHtml(d.department || '—')}</td>
+                <td>${d.sales || 0}</td>
+                <td>${d.units || 0}</td>
+                <td>$${Number(d.revenue || 0).toFixed(2)}</td>
+                <td style="font-weight:600;color:${(d.profit || 0) >= 0 ? '#1d4ed8' : '#dc2626'}">$${Number(d.profit || 0).toFixed(2)}</td>
+            </tr>`).join('');
+    }
+
+    const deptProfitBody = document.getElementById('rpByDeptProfitBody');
+    if (!data.by_department || !data.by_department.length) {
+        deptProfitBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Sin datos en el periodo</td></tr>';
+    } else {
+        deptProfitBody.innerHTML = data.by_department.map(d => `
+            <tr>
+                <td>${escapeHtml(d.department || '—')}</td>
+                <td>$${Number(d.revenue || 0).toFixed(2)}</td>
+                <td>$${Number(d.cost || 0).toFixed(2)}</td>
+                <td style="font-weight:700;color:${(d.profit || 0) >= 0 ? '#1d4ed8' : '#dc2626'}">$${Number(d.profit || 0).toFixed(2)}</td>
+            </tr>`).join('');
+    }
 
     const payNames = { cash: '💵 Efectivo', card: '💳 Tarjeta', mixed: '🔀 Mixto' };
     const payBody = document.getElementById('rpPaymentsBody');

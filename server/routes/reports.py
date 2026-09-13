@@ -426,6 +426,46 @@ def sales_report():
         total_amount = float(summary['total'] or 0)
         total_cost = float(units_row['cost'] or 0)
 
+        by_department = [dict(d) for d in db.fetch_all(f'''
+            SELECT COALESCE(c.name, 'Sin categoría') as department,
+                   COUNT(DISTINCT s.id) as sales,
+                   COALESCE(SUM(si.quantity - COALESCE(si.returned_quantity, 0)), 0) as units,
+                   COALESCE(SUM(CASE WHEN si.quantity > 0
+                       THEN si.total * ((si.quantity - COALESCE(si.returned_quantity, 0)) / si.quantity)
+                       ELSE 0 END), 0) as revenue,
+                   COALESCE(SUM((si.quantity - COALESCE(si.returned_quantity, 0)) * COALESCE(p.cost, 0)), 0) as cost
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            JOIN products p ON si.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            {where}
+            AND si.quantity > COALESCE(si.returned_quantity, 0)
+            GROUP BY COALESCE(c.id, 0), COALESCE(c.name, 'Sin categoría')
+            ORDER BY revenue DESC
+        ''', params)]
+
+        for d in by_department:
+            d['revenue'] = round(float(d['revenue'] or 0), 2)
+            d['cost'] = round(float(d['cost'] or 0), 2)
+            d['profit'] = round(d['revenue'] - d['cost'], 2)
+
+        by_day = [dict(d) for d in db.fetch_all(f'''
+            SELECT DATE(s.sale_date) as day,
+                   COUNT(DISTINCT s.id) as sales,
+                   COALESCE(SUM(si.quantity - COALESCE(si.returned_quantity, 0)), 0) as units,
+                   COALESCE(SUM(si.total), 0) as total
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            {where}
+            GROUP BY DATE(s.sale_date)
+            ORDER BY day
+        ''', params)]
+
+        for d in by_day:
+            d['total'] = round(float(d['total'] or 0), 2)
+            d['units'] = int(d['units'] or 0)
+            d['sales'] = int(d['sales'] or 0)
+
         return jsonify({
             'summary': {
                 'sales': summary['sales'],
@@ -433,11 +473,14 @@ def sales_report():
                 'avg_ticket': round(float(summary['avg_ticket'] or 0), 2),
                 'max_ticket': round(float(summary['max_ticket'] or 0), 2),
                 'units': int(units_row['units'] or 0),
-                'profit': round(total_amount - total_cost, 2)
+                'profit': round(total_amount - total_cost, 2),
+                'margin_pct': round((total_amount - total_cost) / total_amount * 100, 2) if total_amount else 0
             },
             'payments': [dict(p) for p in payments],
             'cashiers': [dict(c) for c in cashiers],
-            'top_products': top_products
+            'top_products': top_products,
+            'by_department': by_department,
+            'by_day': by_day
         }), 200
 
     except Exception as e:
