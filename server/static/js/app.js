@@ -1719,7 +1719,7 @@ function formatNumber(n) {
 let posSelectedIndex = 0;
 let posActiveCategory = null;
 let cartSelectedIndex = 0;
-let posSearchFilters = { inStockOnly: false, sort: 'name_asc' };
+let posSearchFilters = { inStockOnly: true, sort: 'name_asc' };
 
 // Render virtualizado del overlay de búsqueda: solo se pintan unas pocas
 // cards alrededor de la selección (el array filtrado completo sigue operativo).
@@ -1761,7 +1761,7 @@ function getFilteredProducts() {
     const filtered = products.filter(p => {
         const matchSearch = !query || getProductSearchKey(p).includes(query);
         const matchCat = !posActiveCategory || p.category_id === posActiveCategory;
-        const matchStock = !posSearchFilters.inStockOnly || (Number(p.effective_stock) || 0) > 0;
+        const matchStock = !posSearchFilters.inStockOnly || getAvailableStock(p.id) > 0;
         return matchSearch && matchCat && matchStock;
     });
     const sort = posSearchFilters.sort;
@@ -1801,7 +1801,10 @@ function getFilteredProducts() {
 function onPosFilterChange() {
     const inStock = document.getElementById('posFilterInStock');
     const sort = document.getElementById('posFilterSort');
-    if (inStock) posSearchFilters.inStockOnly = inStock.checked;
+    if (inStock) {
+        inStock.checked = true;
+        posSearchFilters.inStockOnly = true;
+    }
     if (sort) posSearchFilters.sort = sort.value;
     cancelPosSearchRender();
     posSelectedIndex = 0;
