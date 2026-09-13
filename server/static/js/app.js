@@ -1478,7 +1478,7 @@ inventory: 'Agregar inventario',
             case 'products': await loadProductsTable(); break;
             case 'lots': await loadLots(); break;
             case 'existencias': await loadLotsCut(); break;
-            case 'inventory': await loadInventory(); break;
+            case 'inventory': await loadInventory(); focusInventorySearch(); break;
             case 'inventory-history': await loadInventoryMovementsHistory(); break;
             case 'adjustments': focusAdjustmentsSearch(); break;
             case 'orders': await loadOrdersSection(); break;
@@ -3099,10 +3099,7 @@ async function loadInventory() {
             console.warn('No se pudieron cargar lotes', e);
         }
         renderInventoryView();
-        const searchEl = document.getElementById('inventorySearch');
-        if (searchEl && document.activeElement !== searchEl) {
-            setTimeout(() => searchEl.focus(), 50);
-        }
+        focusInventorySearch();
     } catch (error) {
         showToast('Error al cargar inventario', 'error');
     }
@@ -3122,6 +3119,22 @@ function onInventorySearchChange() {
     if (clearBtn) clearBtn.style.display = v ? 'block' : 'none';
     clearTimeout(invSearchRenderTimer);
     invSearchRenderTimer = setTimeout(() => renderInventoryView(), inventoryRenderDebounce());
+}
+
+function focusInventorySearch() {
+    const section = document.getElementById('inventorySection');
+    if (section && !section.classList.contains('active')) return;
+    const modalActive = document.getElementById('modalOverlay')?.classList?.contains('active');
+    const sideOpen = document.querySelector('.inv-side-overlay.open');
+    if (modalActive || sideOpen) return;
+    const searchEl = document.getElementById('inventorySearch');
+    if (searchEl && document.activeElement !== searchEl) {
+        setTimeout(() => {
+            if (document.activeElement === searchEl) return;
+            searchEl.focus();
+            try { searchEl.setSelectionRange(searchEl.value.length, searchEl.value.length); } catch {}
+        }, 50);
+    }
 }
 
 function clearInventorySearch() {
@@ -3157,9 +3170,11 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(msg, 'warning');
             inp.value = '';
             showConfirmDialog({
-                title: '🤔 Producto no encontrado',
+                title: 'Producto no encontrado',
                 message: `El código <strong>${escapeHtml(v)}</strong> no existe en el sistema. ¿Quieres registrarlo como producto nuevo?`,
-                confirmText: '📦 Registrarlo',
+                icon: `<svg class="icon confirm-dialog-icon-svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path><line x1="8" y1="11" x2="14" y2="11"></line></svg>`,
+                confirmIcon: `<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>`,
+                confirmText: 'Registrarlo',
                 cancelText: 'Cancelar',
                 onConfirm: () => showAddProductModal(v)
             });
@@ -9439,19 +9454,22 @@ function closeModal() {
     if (typeof cb === 'function') {
         try { cb(); } catch {}
     }
+    focusInventorySearch();
 }
 
-function showConfirmDialog({ title = 'Confirmar', message = '', confirmText = 'Aceptar', cancelText = 'Cancelar', danger = false, onConfirm = null, onCancel = null } = {}) {
+function showConfirmDialog({ title = 'Confirmar', message = '', icon = '', confirmText = 'Aceptar', confirmIcon = '', cancelText = 'Cancelar', danger = false, onConfirm = null, onCancel = null } = {}) {
     const btnClass = danger ? 'btn-danger' : 'btn-primary';
+    const okHtml = confirmIcon ? `${confirmIcon} ${confirmText}` : confirmText;
     showModal(title, `
         <div class="confirm-dialog">
+            ${icon ? `<div class="confirm-dialog-icon">${icon}</div>` : ''}
             <p class="confirm-dialog-message">${message}</p>
             <div class="confirm-dialog-actions">
                 <button type="button" class="btn btn-secondary" data-confirm-action="cancel">${cancelText}</button>
-                <button type="button" class="btn ${btnClass}" data-confirm-action="ok">${confirmText}</button>
+                <button type="button" class="btn ${btnClass}" data-confirm-action="ok" id="confirmOkBtn">${okHtml}</button>
             </div>
         </div>
-    `);
+    `, { primaryFocusId: 'confirmOkBtn' });
     const cancelBtn = document.querySelector('#modalBody [data-confirm-action="cancel"]');
     const okBtn = document.querySelector('#modalBody [data-confirm-action="ok"]');
     if (okBtn) okBtn.focus();
