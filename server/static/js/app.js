@@ -4046,6 +4046,16 @@ async function handleAdjustmentSearch() {
     }
     if (clearBtn) clearBtn.style.display = 'block';
     try {
+        if (looksLikeBarcode(query)) {
+            try {
+                const product = await apiCall('/products/barcode/' + encodeURIComponent(query));
+                showAdjustmentProduct(product);
+                showToast('Producto encontrado: ' + product.name, 'success');
+                return;
+            } catch (e) {
+                // sin coincidencia exacta: cae a la búsqueda por texto/prefijo
+            }
+        }
         const params = new URLSearchParams({ search: query });
         const results = await apiCall('/products?' + params.toString());
         if (!results.length) {
@@ -4148,8 +4158,10 @@ function onAdjustmentsSearchInput() {
         if (clearBtn) clearBtn.style.display = 'none';
     }
     clearTimeout(adjustmentsSearchTimer);
-    if (input.value.trim().length >= 2) {
-        adjustmentsSearchTimer = setTimeout(() => handleAdjustmentSearch(), 300);
+    const trimmed = input.value.trim();
+    if (trimmed.length >= 2) {
+        const delay = looksLikeBarcode(trimmed) ? 40 : 300;
+        adjustmentsSearchTimer = setTimeout(() => handleAdjustmentSearch(), delay);
     }
 }
 

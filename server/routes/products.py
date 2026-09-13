@@ -501,6 +501,36 @@ def get_product_by_barcode(barcode):
         product_stock = float(d.get('stock') or 0)
         d['effective_stock'] = product_stock + lots_stock
         d['has_lots'] = lots_stock > 0
+        d['product_stock'] = product_stock
+        d['lots_total'] = lots_stock
+
+        lots = db.fetch_all('''
+            SELECT l.*, p.price as product_price, p.cost as product_cost,
+                   c.name as category_name
+            FROM lots l
+            JOIN products p ON l.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE l.product_id = ?
+            ORDER BY l.expiry_date ASC
+        ''', (product['id'],))
+        lots = [dict(l) for l in lots]
+        from datetime import date as _date
+        today = _date.today()
+        for lot in lots:
+            expiry = lot.get('expiry_date')
+            try:
+                if isinstance(expiry, str):
+                    expiry = _dt.strptime(expiry[:10], '%Y-%m-%d').date()
+                if hasattr(expiry, 'year'):
+                    lot['days_left'] = (expiry - today).days
+                    lot['is_expired'] = lot['days_left'] < 0
+                else:
+                    lot['days_left'] = None
+                    lot['is_expired'] = False
+            except Exception:
+                lot['days_left'] = None
+                lot['is_expired'] = False
+        d['lots'] = lots
         return jsonify(d), 200
 
     except Exception as e:
