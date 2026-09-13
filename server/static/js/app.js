@@ -9512,7 +9512,7 @@ async function showAddProductModal(prefillBarcode) {
                 <label>Nombre *</label>
                 <input type="text" name="name" placeholder="Ej. Pan Blanco Grande" required autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </div>
-            <div class="form-row">
+            <div class="form-row cols-3">
                 <div class="form-group">
                     <label>Categoría</label>
                     <select name="category_id">${catOptions}</select>
@@ -9520,6 +9520,10 @@ async function showAddProductModal(prefillBarcode) {
                 <div class="form-group">
                     <label>Código de Barras</label>
                     <input type="text" name="barcode" ${barcodeAttr} autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label>Cantidad inicial</label>
+                    <input type="number" name="stock" step="0.01" min="0" placeholder="0" value="0">
                 </div>
             </div>
             <div class="form-row">
@@ -9574,7 +9578,8 @@ async function saveProduct(e) {
         barcode: formData.get('barcode'),
         category_id: formData.get('category_id') ? parseInt(formData.get('category_id')) : null,
         price: parseFloat(formData.get('price')),
-        cost: parseFloat(formData.get('cost')) || 0
+        cost: parseFloat(formData.get('cost')) || 0,
+        stock: parseFloat(formData.get('stock')) || 0
     };
     
     try {

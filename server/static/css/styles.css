@@ -3533,6 +3533,10 @@ td.name-cell {
     gap: 12px;
 }
 
+.form-row.cols-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
 .gain-preview-box {
     background: #f9fafb;
     border: 2px dashed var(--border);

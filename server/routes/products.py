@@ -253,6 +253,13 @@ def create_product():
         category_id = data.get('category_id')
         price = data.get('price', 0)
         cost = data.get('cost', 0)
+        stock = data.get('stock', 0)
+        try:
+            stock = float(stock) if stock is not None else 0
+        except (TypeError, ValueError):
+            stock = 0
+        if stock < 0:
+            return jsonify({'error': 'La cantidad inicial no puede ser negativa'}), 400
 
         if not name:
             return jsonify({'error': 'El nombre del producto es requerido'}), 400
@@ -265,9 +272,9 @@ def create_product():
                 return jsonify({'error': 'Ya existe un producto con este código de barras'}), 400
 
         cursor = db.execute('''
-            INSERT INTO products (name, barcode, category_id, price, cost)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, barcode, category_id, price, cost))
+            INSERT INTO products (name, barcode, category_id, price, cost, stock)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, barcode, category_id, price, cost, stock))
         
         product_id = cursor.lastrowid
         
@@ -287,6 +294,11 @@ def create_product():
         log_movement(db, product_id=product_id, movement_type='product_created',
                      product_name=name, product_barcode=barcode,
                      notes=f'Producto registrado. {crafted_notes}')
+
+        if stock > 0:
+            log_movement(db, product_id=product_id, movement_type='entry',
+                         quantity=stock, product_name=name, product_barcode=barcode,
+                         notes=f'Cantidad inicial en stock general al registrar el producto')
 
         db.execute('''
             INSERT INTO change_log (table_name, record_id, action, data, source, device_id, user_id)
