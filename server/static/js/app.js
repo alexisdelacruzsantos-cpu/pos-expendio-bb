@@ -13,6 +13,18 @@ let products = [];
 let promotions = [];
 let allProducts = [];
 let allLots = [];
+let lotsByProduct = null;
+
+function indexLotsByProduct() {
+    lotsByProduct = {};
+    for (const l of allLots) {
+        (lotsByProduct[l.product_id] || (lotsByProduct[l.product_id] = [])).push(l);
+    }
+}
+
+function getProductLots(productId) {
+    return lotsByProduct && lotsByProduct[productId] ? lotsByProduct[productId] : [];
+}
 let lastSaleResult = null;
 let fullscreenTriggered = false;
 let salesHistoryData = [];
@@ -1667,11 +1679,45 @@ let posActiveCategory = null;
 let cartSelectedIndex = 0;
 let posSearchFilters = { inStockOnly: false, sort: 'name_asc' };
 
+// Render virtualizado del overlay de búsqueda: solo se pintan unas pocas
+// cards alrededor de la selección (el array filtrado completo sigue operativo).
+const POS_RESULT_WINDOW = 60;
+let posRenderStart = 0;
+let posRenderTimer = null;
+
+function schedulePosSearchRender() {
+    if (posRenderTimer) clearTimeout(posRenderTimer);
+    posRenderTimer = setTimeout(() => {
+        posRenderTimer = null;
+        doPosSearchRender();
+    }, 50);
+}
+
+function cancelPosSearchRender() {
+    if (posRenderTimer) {
+        clearTimeout(posRenderTimer);
+        posRenderTimer = null;
+    }
+}
+
+function doPosSearchRender() {
+    renderPosProductsTable();
+    showSearchResults();
+    updateSearchCounter();
+}
+
+function getProductSearchKey(p) {
+    if (p._searchKey === undefined) {
+        p._searchKey = ((p.name || '') + '\u0000' + (p.barcode || '')).toLowerCase();
+    }
+    return p._searchKey;
+}
+
 function getFilteredProducts() {
     const query = (document.getElementById('posSearchInput')?.value || '').toLowerCase();
     if (!query && !posActiveCategory && !posSearchFilters.inStockOnly && posSearchFilters.sort === 'name_asc') return [...products];
     const filtered = products.filter(p => {
-        const matchSearch = !query || p.name.toLowerCase().includes(query) || (p.barcode && p.barcode.toLowerCase().includes(query));
+        const matchSearch = !query || getProductSearchKey(p).includes(query);
         const matchCat = !posActiveCategory || p.category_id === posActiveCategory;
         const matchStock = !posSearchFilters.inStockOnly || (Number(p.effective_stock) || 0) > 0;
         return matchSearch && matchCat && matchStock;
@@ -1715,7 +1761,9 @@ function onPosFilterChange() {
     const sort = document.getElementById('posFilterSort');
     if (inStock) posSearchFilters.inStockOnly = inStock.checked;
     if (sort) posSearchFilters.sort = sort.value;
+    cancelPosSearchRender();
     posSelectedIndex = 0;
+    posRenderStart = 0;
     renderPosProductsTable();
     updateSearchCounter();
 }
@@ -1736,16 +1784,17 @@ function renderPosCategoryBar() {
 
 function setPosCategory(catId) {
     posActiveCategory = catId;
+    cancelPosSearchRender();
     posSelectedIndex = 0;
+    posRenderStart = 0;
     renderPosCategoryBar();
     renderPosProductsTable();
 }
 
 function onPosSearchChange() {
     posSelectedIndex = 0;
-    renderPosProductsTable();
-    showSearchResults();
-    updateSearchCounter();
+    posRenderStart = 0;
+    schedulePosSearchRender();
 }
 
 function updateSearchCounter() {
@@ -1917,12 +1966,14 @@ function handlePosKey(e) {
 
     if (e.key === 'ArrowDown') {
         e.preventDefault();
+        cancelPosSearchRender();
         const filtered = getFilteredProducts();
         posSelectedIndex = Math.min(posSelectedIndex + 1, filtered.length - 1);
         renderPosProductsTable();
         scrollToSelected();
     } else if (e.key === 'ArrowUp') {
         e.preventDefault();
+        cancelPosSearchRender();
         const filtered = getFilteredProducts();
         posSelectedIndex = Math.max(posSelectedIndex - 1, 0);
         renderPosProductsTable();
@@ -2125,8 +2176,9 @@ function selectModalProduct(productId) {
 
 function scrollToSelected() {
     const cards = document.querySelectorAll('#posSearchResultsList .pos-search-card');
-    if (cards[posSelectedIndex]) {
-        cards[posSelectedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const local = posSelectedIndex - posRenderStart;
+    if (cards[local]) {
+        cards[local].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 }
 
@@ -2137,15 +2189,27 @@ function renderPosProductsTable() {
 
     if (filtered.length === 0) {
         list.innerHTML = '<div class="pos-search-empty">Sin resultados</div>';
+        posRenderStart = 0;
         return;
     }
 
-    list.innerHTML = filtered.map((p, i) => {
+    const total = filtered.length;
+    let start = 0;
+    if (total > POS_RESULT_WINDOW) {
+        const half = Math.floor(POS_RESULT_WINDOW / 2);
+        start = Math.max(0, Math.min(posSelectedIndex - half, total - POS_RESULT_WINDOW));
+    }
+    posRenderStart = start;
+    const end = Math.min(total, start + POS_RESULT_WINDOW);
+    const visible = filtered.slice(start, end);
+
+    list.innerHTML = visible.map((p, i) => {
+        const idx = start + i;
         const stock = getAvailableStock(p.id);
         const stockClass = stock <= 0 ? 'badge-danger' : 'badge-success';
         const stockLabel = stock <= 0 ? '🔴 0' : `🟢 ${stock}`;
         return `
-        <div class="pos-search-card ${i === posSelectedIndex ? 'selected' : ''}" onclick="selectAndAdd(${p.id})" data-index="${i}">
+        <div class="pos-search-card ${idx === posSelectedIndex ? 'selected' : ''}" onclick="selectAndAdd(${p.id})" data-index="${idx}">
             <div class="pos-search-card-code">${escapeHtml(p.barcode || '-')}</div>
             <div class="pos-search-card-info">
                 <div class="pos-search-card-name">${escapeHtml(p.name)}</div>
@@ -5387,8 +5451,7 @@ function getEffectiveBaseStock(productId) {
 
 function getAvailableStock(productId) {
     const baseEff = getEffectiveBaseStock(productId);
-    const lotStock = allLots
-        .filter(l => l.product_id === productId)
+    const lotStock = getProductLots(productId)
         .reduce((sum, l) => sum + getEffectiveLotStock(productId, l.id, l.current_quantity || 0), 0);
     return baseEff + lotStock;
 }
@@ -5397,8 +5460,8 @@ function addToCart(productId) {
     const product = allProducts.find(p => p.id === productId);
     if (!product) return;
 
-    const productLots = allLots
-        .filter(l => l.product_id === productId && l.current_quantity > 0)
+    const productLots = getProductLots(productId)
+        .filter(l => l.current_quantity > 0)
         .sort((a, b) => a.days_left - b.days_left);
 
     const productPrice = parseFloat(product.price);
@@ -7925,6 +7988,7 @@ function applyUpdates() {
 async function loadLots(silent = false) {
     try {
         allLots = await apiCall('/lots/');
+        indexLotsByProduct();
         if (!silent) renderLotsTable();
     } catch (error) {
         if (!silent) showToast('Error al cargar lotes', 'error');
