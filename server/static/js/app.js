@@ -6970,7 +6970,19 @@ async function mpChargeFlow(cardAmount) {
             }
         });
     } catch (e) {
-        return { approved: false, reason: 'error' };
+        let msg = '';
+        try {
+            const parsed = JSON.parse(e.message);
+            msg = parsed.error || '';
+            if (parsed.detail) {
+                try {
+                    const d = JSON.parse(parsed.detail);
+                    const er = d.errors && d.errors[0];
+                    if (er) msg = er.message || msg;
+                } catch (_) {}
+            }
+        } catch (_) {}
+        return { approved: false, reason: 'error', message: msg || null };
     }
 }
 
@@ -7017,7 +7029,7 @@ async function confirmPayment() {
             if (payRes.message) {
                 showToast(payRes.message, 'error');
             } else if (payRes.reason === 'timeout') showToast('El cobro en el terminal no se completó a tiempo', 'error');
-            else if (payRes.reason === 'error') showToast('Ocurrió un error con el terminal de Mercado Pago', 'error');
+            else if (payRes.reason === 'error') showToast(payRes.message || 'Ocurrió un error con el terminal de Mercado Pago', 'error');
             else showToast('Cobro cancelado', 'info');
             return;
         }
