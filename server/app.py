@@ -123,9 +123,16 @@ def _block_sensitive_paths():
     return None
 
 
+_NO_CACHE = {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'}
+
+
 @app.route('/static/<path:path>')
 def serve_static(path):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), path)
+    resp = send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), path)
+    resp.headers['Cache-Control'] = _NO_CACHE['Cache-Control']
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 
 # Rutas catch-all para SPA (devuelve index.html)
@@ -135,7 +142,11 @@ def catch_all(path):
         return jsonify({"error": "Archivo no disponible"}), 403
     if '.' not in path:
         return render_template('dashboard.html')
-    return send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), path)
+    resp = send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), path)
+    resp.headers['Cache-Control'] = _NO_CACHE['Cache-Control']
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 
 # ---------------------------------------------------------------------------

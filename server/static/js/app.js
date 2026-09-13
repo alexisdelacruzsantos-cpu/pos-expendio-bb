@@ -14,6 +14,7 @@ let mpActiveOrderId = null;
 let mpPollTimer = null;
 let mpWaitCanceled = false;
 let mpResolve = null;
+let statusPollFailures = 0;
 const MP_IVA_RATE = 0.16;
 
 function getMPFeeRate() {
@@ -6809,6 +6810,7 @@ function renderCardFee(gross, net, fee, feeRate) {
 
 function mpShowWaitModal(amount) {
     mpWaitCanceled = false;
+    statusPollFailures = 0;
     let ov = document.getElementById('mpWaitOverlay');
     if (!ov) {
         ov = document.createElement('div');
@@ -6822,7 +6824,10 @@ function mpShowWaitModal(amount) {
             <div class="mp-wait-title">Cobrando con terminal Point</div>
             <div class="mp-wait-amount">$${money(amount)}</div>
             <div class="mp-wait-hint" id="mpWaitHint">Acerque la tarjeta al terminal…</div>
-            <button type="button" class="btn btn-danger mp-wait-cancel" id="mpCancelBtn" onclick="mpCancelCurrentOrder()">✕ Cancelar cobro</button>
+            <div class="mp-wait-actions">
+                <button type="button" class="btn btn-primary mp-wait-recovered" onclick="mpMarkAlreadyCharged()">✓ Ya cobró</button>
+                <button type="button" class="btn btn-danger mp-wait-cancel" id="mpCancelBtn" onclick="mpCancelCurrentOrder()">✕ Cancelar cobro</button>
+            </div>
         </div>`;
     ov.style.display = 'flex';
     const cardBtn = document.querySelector('[data-method="card"]');
@@ -6845,17 +6850,87 @@ async function mpCancelCurrentOrder() {
     if (!document.getElementById('mpWaitOverlay') || document.getElementById('mpWaitOverlay').style.display !== 'flex') {
         return;
     }
-    mpWaitCanceled = true;
-    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+    const resolve = mpResolve;
+    if (!resolve) { mpHideWaitModal(); return; }
     const orderId = mpActiveOrderId;
-    mpActiveOrderId = null;
+
+    const settleCharged = () => {
+        mpWaitCanceled = true;
+        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+        mpActiveOrderId = null;
+        mpResolve = null;
+        mpHideWaitModal();
+        resolve({ approved: true, order_id: orderId });
+    };
+    const settleCancelled = async () => {
+        mpWaitCanceled = true;
+        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+        mpActiveOrderId = null;
+        if (orderId) {
+            try { await apiCall('/mp/orders/' + orderId + '/cancel', 'POST'); } catch (e) {}
+        }
+        mpResolve = null;
+        mpHideWaitModal();
+        resolve({ approved: false, reason: 'cancelado' });
+    };
+
+    // Seguridad: si la terminal ya imprimió el ticket, el pago se cobró.
+    // NO cancelar en MP (riesgo de reembolso) y NO descartar la venta: se registra.
+    let order = null;
     if (orderId) {
-        try { await apiCall('/mp/orders/' + orderId + '/cancel', 'POST'); } catch (e) {}
+        try { order = await apiCall('/mp/orders/' + orderId, 'GET'); } catch (e) {}
+    }
+    if (order && mpOrderIsApproved(order)) {
+        settleCharged();
+        return;
+    }
+    if (!order) {
+        const ov = document.getElementById('mpWaitOverlay');
+        if (ov) ov.style.display = 'none';
+        showConfirmDialog({
+            title: '¿El cliente ya pagó?',
+            icon: '💳',
+            message: 'No se pudo consultar el estado del pago en la terminal.<br>Si la terminal <strong>ya imprimió el ticket</strong>, presiona "Ya cobró" para registrar la venta.<br>Si NO cobró, usa "Cancelar" para cancelar el cobro.',
+            confirmText: 'Ya cobró',
+            confirmIcon: '✓',
+            cancelText: 'No cobró, cancelar',
+            onConfirm: settleCharged,
+            onCancel: () => { settleCancelled(); }
+        });
+        return;
+    }
+    await settleCancelled();
+}
+
+async function mpMarkAlreadyCharged() {
+    if (!document.getElementById('mpWaitOverlay') || document.getElementById('mpWaitOverlay').style.display !== 'flex') {
+        return;
     }
     const resolve = mpResolve;
+    if (!resolve) { mpHideWaitModal(); return; }
+    const orderId = mpActiveOrderId;
+
+    // En última instancia el cajero confirma que la terminal YA imprimió el ticket.
+    // NO se cancela la orden en MP (riesgo de reembolso del pago aprobado).
+    mpWaitCanceled = true;
+    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+    mpActiveOrderId = null;
     mpResolve = null;
     mpHideWaitModal();
-    if (resolve) resolve({ approved: false, reason: 'cancelado' });
+    resolve({ approved: true, order_id: orderId });
+}
+
+function mpOrderIsApproved(order) {
+    if (!order) return false;
+    const status = (order.status || '').toLowerCase();
+    const paymentsRaw = (order.transactions && order.transactions.payments) || order.payments || [];
+    const pay = paymentsRaw[0] || {};
+    const payStatus = (pay.status || '').toLowerCase();
+    const successStates = ['approved', 'accredited', 'paid'];
+    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
+    return successStates.indexOf(payStatus) !== -1 ||
+           successStates.indexOf(status) !== -1 ||
+           (status === 'closed' && failStates.indexOf(payStatus) === -1);
 }
 
 async function mpEnsureConnected() {
@@ -6901,65 +6976,87 @@ async function mpChargeFlow(cardAmount) {
             const MAX_WAIT_MS = 10 * 60 * 1000;
 
             const tick = async () => {
-                if (mpWaitCanceled || !mpActiveOrderId) return;
-                if (Date.now() - start > MAX_WAIT_MS) {
-                    const r = mpResolve; mpResolve = null;
-                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
-                    mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'timeout' }); }, 100);
-                    return;
-                }
-                let order = null;
-                try { order = await apiCall('/mp/orders/' + orderId, 'GET'); } catch (e) {}
-                if (!order) { mpPollTimer = setTimeout(tick, POLL_MS); return; }
-                if (!mpActiveOrderId) return;
+                try {
+                    if (mpWaitCanceled || !mpActiveOrderId) return;
+                    if (Date.now() - start > MAX_WAIT_MS) {
+                        const r = mpResolve; mpResolve = null;
+                        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                        mpActiveOrderId = null;
+                        if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'timeout' }); }, 100);
+                        return;
+                    }
+                    let order = null;
+                    let lastPollErr = null;
+                    try { order = await apiCall('/mp/orders/' + orderId, 'GET'); }
+                    catch (e) { lastPollErr = e; }
+                    if (!order) {
+                        statusPollFailures += 1;
+                        const hint = document.getElementById('mpWaitHint');
+                        if (statusPollFailures >= 3 && statusPollFailures < 20) {
+                            if (hint) hint.textContent = '⚠ No se pudo consultar el estado del cobro, reintentando…';
+                        } else if (statusPollFailures >= 20) {
+                            if (hint) hint.textContent = '⚠ El cobro parece aplicado. Use "Ya cobrado" si la terminal imprimió el ticket.';
+                        }
+                        if (statusPollFailures >= 25) {
+                            const r = mpResolve; mpResolve = null;
+                            if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                            mpActiveOrderId = null;
+                            if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'error', message: (lastPollErr && lastPollErr.message) || 'No se pudo consultar el estado del cobro' }); }, 100);
+                            return;
+                        }
+                        mpPollTimer = setTimeout(tick, POLL_MS);
+                        return;
+                    }
+                    statusPollFailures = 0;
+                    if (!mpActiveOrderId) return;
 
-                const status = (order.status || '').toLowerCase();
-                const paymentsRaw = (order.transactions && order.transactions.payments) || order.payments || [];
-                const pay = paymentsRaw[0] || {};
-                const payStatus = (pay.status || '').toLowerCase();
-                const payDetail = pay.status_detail || '';
-                const hint = document.getElementById('mpWaitHint');
+                    const isApproved = mpOrderIsApproved(order);
+                    const status = (order.status || '').toLowerCase();
+                    const paymentsRaw = (order.transactions && order.transactions.payments) || order.payments || [];
+                    const pay = paymentsRaw[0] || {};
+                    const payStatus = (pay.status || '').toLowerCase();
+                    const payDetail = pay.status_detail || '';
+                    const hint = document.getElementById('mpWaitHint');
 
-                const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
-                const successStates = ['approved', 'accredited', 'paid'];
+                    const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
 
-                const isFail = failStates.indexOf(payStatus) !== -1 || failStates.indexOf(status) !== -1;
-                const isSuccess = successStates.indexOf(payStatus) !== -1 ||
-                                  successStates.indexOf(status) !== -1 ||
-                                  (status === 'closed' && !isFail);
-
-                if (isSuccess) {
-                    if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
-                    const r = mpResolve; mpResolve = null;
+                    if (isApproved) {
+                        if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
+                        const r = mpResolve; mpResolve = null;
+                        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                        mpActiveOrderId = null;
+                        if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: true, order_id: orderId }); }, 600);
+                        return;
+                    }
+                    if (payStatus && failStates.indexOf(payStatus) !== -1) {
+                        const msg = mpStatusText(payStatus, payDetail);
+                        if (hint) hint.textContent = '✗ ' + msg;
+                        const r = mpResolve; mpResolve = null;
+                        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                        mpActiveOrderId = null;
+                        if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
+                        return;
+                    }
+                    if (status && failStates.indexOf(status) !== -1) {
+                        const msg = mpStatusText(status, order.status_detail || payDetail);
+                        if (hint) hint.textContent = '✗ ' + msg;
+                        const r = mpResolve; mpResolve = null;
+                        if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
+                        mpActiveOrderId = null;
+                        if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
+                        return;
+                    }
+                    if (payStatus === 'in_process' || payStatus === 'pending' || payStatus === 'authorized') {
+                        if (hint) hint.textContent = '⏳ Procesando pago, espere…';
+                    }
+                    if (hint && (status === 'open')) hint.textContent = 'Acerque la tarjeta al terminal…';
+                    mpPollTimer = setTimeout(tick, POLL_MS);
+                } catch (e) {
                     if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
-                    mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: true, order_id: orderId }); }, 600);
-                    return;
-                }
-                if (payStatus && failStates.indexOf(payStatus) !== -1) {
-                    const msg = mpStatusText(payStatus, payDetail);
-                    if (hint) hint.textContent = '✗ ' + msg;
                     const r = mpResolve; mpResolve = null;
-                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
                     mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
-                    return;
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'error', message: (e && e.message) || 'Ocurrió un error consultando el cobro' }); }, 100);
                 }
-                if (status && failStates.indexOf(status) !== -1) {
-                    const msg = mpStatusText(status, order.status_detail || payDetail);
-                    if (hint) hint.textContent = '✗ ' + msg;
-                    const r = mpResolve; mpResolve = null;
-                    if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
-                    mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
-                    return;
-                }
-                if (payStatus === 'in_process' || payStatus === 'pending' || payStatus === 'authorized') {
-                    if (hint) hint.textContent = '⏳ Procesando pago, espere…';
-                }
-                if (hint && (status === 'open')) hint.textContent = 'Acerque la tarjeta al terminal…';
-                mpPollTimer = setTimeout(tick, POLL_MS);
             };
 
             try {

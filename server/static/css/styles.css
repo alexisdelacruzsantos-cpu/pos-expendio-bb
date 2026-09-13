@@ -7518,6 +7518,19 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
     margin-bottom: 18px;
 }
 
+.mp-wait-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mp-wait-recovered {
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 700;
+}
+
 .mp-wait-cancel {
     width: 100%;
     padding: 12px;
