@@ -6793,6 +6793,22 @@ async function mpEnsureConnected() {
     }
 }
 
+function mpStatusText(status, detail) {
+    const d = (detail || '').toLowerCase();
+    if (d.indexOf('insufficient') !== -1 || d.indexOf('empty_account') !== -1) return 'Saldo insuficiente en la tarjeta';
+    if (d.indexOf('expired') !== -1) return 'Tarjeta vencida';
+    if (d.indexOf('blocked') !== -1) return 'Tarjeta bloqueada';
+    if (d.indexOf('disabled') !== -1 || d.indexOf('inhabilitad') !== -1) return 'Tarjeta inhabilitada';
+    if (d.indexOf('max_attempt') !== -1) return 'Demasiados intentos fallidos';
+    if (d.indexOf('bad_filled') !== -1 || d.indexOf('invalid') !== -1) return 'Datos de tarjeta no válidos';
+    if (d.indexOf('call_for_authorize') !== -1) return 'Se requiere autorización del banco';
+    if (d.indexOf('other_reason') !== -1) return 'Rechazada por el banco';
+    if (d.indexOf('cancel') !== -1) return 'Cobro cancelado';
+    if (d.indexOf('expiration') !== -1 || status === 'expired') return 'Tiempo de espera agotado';
+    if (status === 'failed' || d.indexOf('failed') !== -1) return 'Falló el pago en el terminal';
+    return 'Pago rechazado';
+}
+
 async function mpChargeFlow(cardAmount) {
     try {
         const created = await apiCall('/mp/orders', 'POST', {
@@ -6827,7 +6843,10 @@ async function mpChargeFlow(cardAmount) {
                 const status = order.status;
                 const pay = (order.transactions && order.transactions.payments && order.transactions.payments[0]) || {};
                 const payStatus = pay.status;
+                const payDetail = pay.status_detail || '';
                 const hint = document.getElementById('mpWaitHint');
+
+                const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
 
                 if (status === 'approved' || payStatus === 'approved') {
                     if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
@@ -6837,23 +6856,25 @@ async function mpChargeFlow(cardAmount) {
                     if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: true, order_id: orderId }); }, 600);
                     return;
                 }
-                if (payStatus === 'rejected' || status === 'rejected') {
-                    if (hint) hint.textContent = '✗ Pago rechazado';
+                if (payStatus && failStates.indexOf(payStatus) !== -1) {
+                    const msg = mpStatusText(payStatus, payDetail);
+                    if (hint) hint.textContent = '✗ ' + msg;
                     const r = mpResolve; mpResolve = null;
                     if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
                     mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected' }); }, 800);
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
                     return;
                 }
-                if (status === 'expired' || status === 'canceled' || status === 'cancelled') {
-                    if (hint) hint.textContent = '⏱ Tiempo de espera agotado';
+                if (status && failStates.indexOf(status) !== -1) {
+                    const msg = mpStatusText(status, order.status_detail || payDetail);
+                    if (hint) hint.textContent = '✗ ' + msg;
                     const r = mpResolve; mpResolve = null;
                     if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
                     mpActiveOrderId = null;
-                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'expired' }); }, 800);
+                    if (r) setTimeout(() => { mpHideWaitModal(); r({ approved: false, reason: 'rejected', message: msg }); }, 900);
                     return;
                 }
-                if (payStatus === 'in_process' || payStatus === 'pending') {
+                if (payStatus === 'in_process' || payStatus === 'pending' || payStatus === 'authorized') {
                     if (hint) hint.textContent = '⏳ Procesando pago, espere…';
                 }
                 if (hint && (status === 'open')) hint.textContent = 'Acerque la tarjeta al terminal…';
@@ -6912,8 +6933,9 @@ async function confirmPayment() {
         isProcessingSale = false;
         if (procBtnMp) { procBtnMp.disabled = false; procBtnMp.textContent = '✓ CONFIRMAR (Enter)'; }
         if (!payRes.approved) {
-            if (payRes.reason === 'rejected') showToast('El pago con tarjeta fue rechazado', 'error');
-            else if (payRes.reason === 'timeout' || payRes.reason === 'expired') showToast('El cobro en el terminal no se completó a tiempo', 'error');
+            if (payRes.message) {
+                showToast(payRes.message, 'error');
+            } else if (payRes.reason === 'timeout') showToast('El cobro en el terminal no se completó a tiempo', 'error');
             else if (payRes.reason === 'error') showToast('Ocurrió un error con el terminal de Mercado Pago', 'error');
             else showToast('Cobro cancelado', 'info');
             return;
