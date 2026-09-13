@@ -6914,15 +6914,22 @@ async function mpChargeFlow(cardAmount) {
                 if (!order) { mpPollTimer = setTimeout(tick, POLL_MS); return; }
                 if (!mpActiveOrderId) return;
 
-                const status = order.status;
-                const pay = (order.transactions && order.transactions.payments && order.transactions.payments[0]) || {};
-                const payStatus = pay.status;
+                const status = (order.status || '').toLowerCase();
+                const paymentsRaw = (order.transactions && order.transactions.payments) || order.payments || [];
+                const pay = paymentsRaw[0] || {};
+                const payStatus = (pay.status || '').toLowerCase();
                 const payDetail = pay.status_detail || '';
                 const hint = document.getElementById('mpWaitHint');
 
                 const failStates = ['failed', 'rejected', 'refused', 'canceled', 'cancelled', 'expired'];
+                const successStates = ['approved', 'accredited', 'paid'];
 
-                if (status === 'approved' || payStatus === 'approved') {
+                const isFail = failStates.indexOf(payStatus) !== -1 || failStates.indexOf(status) !== -1;
+                const isSuccess = successStates.indexOf(payStatus) !== -1 ||
+                                  successStates.indexOf(status) !== -1 ||
+                                  (status === 'closed' && !isFail);
+
+                if (isSuccess) {
                     if (hint) hint.textContent = '✓ Pago aprobado, registrando venta…';
                     const r = mpResolve; mpResolve = null;
                     if (mpPollTimer) { clearInterval(mpPollTimer); mpPollTimer = null; }
