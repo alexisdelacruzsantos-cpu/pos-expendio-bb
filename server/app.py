@@ -77,6 +77,7 @@ from routes.imports import imports_bp
 from routes.adjustments import adjustments_bp
 from routes.maintenance import maintenance_bp
 from routes.updates import updates_bp
+from routes.point import point_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -90,6 +91,7 @@ app.register_blueprint(imports_bp, url_prefix='/api/imports')
 app.register_blueprint(adjustments_bp, url_prefix='/api/adjustments')
 app.register_blueprint(maintenance_bp, url_prefix='/api/maintenance')
 app.register_blueprint(updates_bp, url_prefix='/api/updates')
+app.register_blueprint(point_bp, url_prefix='/api/mp')
 
 
 # ---------------------------------------------------------------------------

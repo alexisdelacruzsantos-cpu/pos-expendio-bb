@@ -486,6 +486,9 @@ class Database:
             ("ALTER TABLE inventory_movements ADD COLUMN product_name TEXT", "inventory_movements", "product_name"),
             ("ALTER TABLE inventory_movements ADD COLUMN product_barcode TEXT", "inventory_movements", "product_barcode"),
             ("ALTER TABLE inventory_movements ADD COLUMN lot_batch TEXT", "inventory_movements", "lot_batch"),
+            ("ALTER TABLE terminals ADD COLUMN mp_terminal_id TEXT", "terminals", "mp_terminal_id"),
+            ("ALTER TABLE terminals ADD COLUMN mp_store_id TEXT", "terminals", "mp_store_id"),
+            ("ALTER TABLE terminals ADD COLUMN mp_pos_id TEXT", "terminals", "mp_pos_id"),
         ]
         for sql, table, column in migrations:
             try:

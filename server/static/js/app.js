@@ -7743,6 +7743,7 @@ const SETTINGS_MODULES = [
     { key: 'categories', icon: '🗂', title: 'Categorías', desc: 'Clasifica tus productos y asignales un color' },
     { key: 'users', icon: '👥', title: 'Usuarios', desc: 'Roles, accesos y contraseñas del personal' },
     { key: 'terminals', icon: '💳', title: 'Terminales', desc: 'Terminales de pago y comisiones' },
+    { key: 'mp', icon: '🟦', title: 'Mercado Pago', desc: 'Vincula tu terminal Point y recibe pagos' },
     { key: 'purge', icon: '🧹', title: 'Depurar ventas', desc: 'Borra tickets, devoluciones e historial' },
     { key: 'resetstock', icon: '📦', title: 'Poner stock en 0', desc: 'Limpia el stock general de todos los productos' },
     { key: 'purgecatalog', icon: '🗑', title: 'Vaciar catálogo', desc: 'Elimina productos y categorías para reimportar' },
@@ -7800,6 +7801,9 @@ function showSettingsTab(tab) {
             break;
         case 'terminals':
             loadTerminalsSettings();
+            break;
+        case 'mp':
+            loadMPSettings();
             break;
         case 'purge':
             loadPurgeSalesSettings();
@@ -7913,6 +7917,143 @@ async function loadTerminalsSettings() {
         `;
     } catch (error) {
         showToast('Error al cargar terminales', 'error');
+    }
+}
+
+async function loadMPSettings() {
+    const content = document.getElementById('settingsContent');
+    content.innerHTML = `
+        ${settingsBackBar()}
+        <div class="section-header">
+            <h3>🟦 Mercado Pago Point</h3>
+        </div>
+        <div class="maintenance-card" id="mpStatusCard">
+            <p class="maintenance-desc">Revisando conexión…</p>
+        </div>
+    `;
+    try {
+        const status = await apiCall('/mp/status');
+        if (status.connected) {
+            const term = status.terminals && status.terminals.length
+                ? status.terminals.map(t => `<span class="mp-term-chip ${t.operating_mode === 'PDV' ? 'mp-term-active' : ''}">${t.id.split('__').pop()} · ${t.operating_mode}${t.id === status.terminal_id ? ' · VINCULADA' : ''}</span>`).join('')
+                : '<em>Sin terminales encontradas</em>';
+            content.innerHTML = `
+                ${settingsBackBar()}
+                <div class="section-header">
+                    <h3>🟦 Mercado Pago Point</h3>
+                </div>
+                <div class="maintenance-card">
+                    <div class="mp-status-row">
+                        <span class="mp-status-dot mp-status-ok"></span>
+                        <strong>Conexión activa</strong>
+                    </div>
+                    <p class="maintenance-desc">Cuenta Mercado Pago vinculada. Tu terminal está lista para recibir pagos.</p>
+                    <div class="mp-terminal-list">${term || ''}</div>
+                    <div style="display:flex;gap:10px;margin-top:16px">
+                        <button class="btn btn-primary" onclick="mpConnect()">Reconectar / Cambiar cuenta</button>
+                        <button class="btn btn-danger" onclick="mpDisconnect()">Desconectar</button>
+                    </div>
+                </div>
+            `;
+        } else if (status.configured) {
+            content.innerHTML = `
+                ${settingsBackBar()}
+                <div class="section-header">
+                    <h3>🟦 Mercado Pago Point</h3>
+                </div>
+                <div class="maintenance-card">
+                    <div class="mp-status-row">
+                        <span class="mp-status-dot"></span>
+                        <strong>Credenciales configuradas</strong>
+                    </div>
+                    <p class="maintenance-desc">Conecta tu cuenta para vincular la terminal y cobrar con Mercado Pago.</p>
+                    <div style="display:flex;gap:10px;margin-top:16px">
+                        <button class="btn btn-primary" onclick="mpConnect()">Conectar con Mercado Pago</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                ${settingsBackBar()}
+                <div class="section-header">
+                    <h3>🟦 Mercado Pago Point</h3>
+                </div>
+                <div class="maintenance-card" id="mpConfigCard">
+                    <p class="maintenance-desc">Configura las credenciales de tu aplicación de Mercado Pago (panel developers.mercadopago.com.mx → Your integrations).</p>
+                    <form id="mpConfigForm" onsubmit="mpSaveConfig(event)">
+                        <div class="form-group">
+                            <label>Client ID (App ID)</label>
+                            <input type="text" id="mpClientId" placeholder="Ej: 1234567890" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Client Secret</label>
+                            <input type="password" id="mpClientSecret" placeholder="Secreto de la aplicación" required>
+                        </div>
+                        <div class="form-group">
+                            <label>URL de redirección permitida (Redirect URI)</label>
+                            <input type="text" id="mpRedirectUri" value="${status.host ? 'http://' + status.host + '/api/mp/callback' : ''}" readonly>
+                            <p class="mp-hint">Registra esta URL en tu app de Mercado Pago → Redirect URIs. Después presiona "Conectar".</p>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%">Guardar credenciales</button>
+                    </form>
+                </div>
+            `;
+        }
+    } catch (error) {
+        content.innerHTML = `
+            ${settingsBackBar()}
+            <div class="section-header">
+                <h3>🟦 Mercado Pago Point</h3>
+            </div>
+            <div class="maintenance-card">
+                <p class="maintenance-desc" style="color:#d71920">Error al consultar el estado: ${escapeHtml(error.message)}</p>
+            </div>
+        `;
+    }
+}
+
+async function mpSaveConfig(e) {
+    e.preventDefault();
+    try {
+        await apiCall('/mp/config', 'POST', {
+            client_id: document.getElementById('mpClientId').value.trim(),
+            client_secret: document.getElementById('mpClientSecret').value.trim()
+        });
+        showToast('Credenciales guardadas', 'success');
+        loadMPSettings();
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function mpConnect() {
+    try {
+        const data = await apiCall('/mp/auth-url');
+        if (data.redirect_uri) {
+            const host = location.host;
+            const expected = 'http://' + host + '/api/mp/callback';
+            if (data.redirect_uri !== expected) {
+                showModal('URL de redirección', `
+                    <p class="maintenance-desc">Esta instalación se consulta por <strong>${host}</strong>, pero la URL de redirección autorizada en Mercado Pago es <strong>${data.redirect_uri}</strong>.</p>
+                    <p class="maintenance-desc">Registra la URL <code style="word-break:break-all">${data.redirect_uri}</code> en tu app de Mercado Pago (Redirect URIs) y vuelve a intentar.</p>
+                `);
+                return;
+            }
+        }
+        window.location.href = data.url;
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function mpDisconnect() {
+    if (!confirm('¿Desconectar Mercado Pago de este equipo?')) return;
+    try {
+        await apiCall('/mp/disconnect', 'POST', {});
+        showToast('Mercado Pago desconectado', 'success');
+        loadMPSettings();
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
     }
 }
 
