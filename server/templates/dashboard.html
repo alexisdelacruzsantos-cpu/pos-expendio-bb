@@ -1158,6 +1158,13 @@
                     <div class="pay-input-group" id="payCardGroup" style="display:none">
                         <label><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="2"></rect><path d="M1 10h22"></path></svg> Monto tarjeta</label>
                         <input type="text" id="payCardAmount" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="0.00" autocomplete="off" onfocus="this.select()" oninput="calculatePaymentChange()" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPayment();}">
+                        <div class="pay-fee-box" id="payCardFeeBox" style="display:none">
+                            <div class="pay-fee-row"><span>Venta por tarjeta</span><strong id="payFeeBase">$0.00</strong></div>
+                            <div class="pay-fee-row pay-fee-row-neg"><span id="payFeeLabel">Comisión MP</span><strong id="payFeeAmount">$0.00</strong></div>
+                            <div class="pay-fee-row pay-fee-row-total"><span>A cobrar al cliente</span><strong id="payFeeGross">$0.00</strong></div>
+                            <div class="pay-fee-note" id="payFeeNote">Comisión (X% + IVA) se descuenta del cobro por tarjeta</div>
+                            <div class="pay-fee-warn" id="payFeeWarn" style="display:none">⚠️ Sin terminal configurada en Settings → Terminales</div>
+                        </div>
                     </div>
                     <div class="pay-summary" id="paySummary" style="display:none">
                         <div class="pay-summary-row">

@@ -9,6 +9,39 @@ let isProcessingSale = false;
 let cartHydrated = false;
 const CART_STORAGE_KEY = 'pos_cart_v1';
 let paymentMethod = 'cash';
+let activeTerminal = null;
+const MP_IVA_RATE = 0.16;
+
+function getMPFeeRate() {
+    const rate = activeTerminal && activeTerminal.commission_rate ? parseFloat(activeTerminal.commission_rate) : 0;
+    return rate > 0 ? (rate / 100) * (1 + MP_IVA_RATE) : 0;
+}
+
+function money(v) {
+    return (Math.round(v * 100) / 100).toFixed(2);
+}
+
+async function refreshActiveTerminal() {
+    try {
+        const list = await apiCall('/settings/terminals');
+        activeTerminal = Array.isArray(list) && list.length ? list[0] : null;
+    } catch (e) {
+        activeTerminal = null;
+    }
+    const overlay = document.getElementById('paymentOverlay');
+    if (overlay && overlay.style.display === 'flex' && activeTerminal) {
+        calculatePaymentChange();
+    }
+}
+
+function currentCartTotal() {
+    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) - applyPromotionsToCart().totalDiscount;
+}
+
+function getCardNet(cardGross) {
+    const feeActive = (paymentMethod === 'card' || paymentMethod === 'mixed') && getMPFeeRate() > 0;
+    return feeActive ? cardGross * (1 - getMPFeeRate()) : cardGross;
+}
 let products = [];
 let promotions = [];
 let allProducts = [];
@@ -6525,9 +6558,8 @@ async function openPaymentModal() {
         `, { onClose: () => focusPosSearchBar(), primaryFocusId: 'overstockConfirmBtn' });
         return;
     }
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const { totalDiscount } = applyPromotionsToCart();
-    const total = subtotal - totalDiscount;
+    refreshActiveTerminal();
+    const total = currentCartTotal();
     const totalEl = document.getElementById('paymentTotal');
     const requiredEl = document.getElementById('payRequired');
     if (totalEl) totalEl.textContent = '$' + total.toFixed(2);
@@ -6578,41 +6610,72 @@ function selectPayMethod(method) {
     document.getElementById('paySummary').style.display = method === 'mixed' ? 'block' : 'none';
     const cashInput = document.getElementById('payCashAmount');
     const cardInput = document.getElementById('payCardAmount');
+    const total = currentCartTotal();
+    const feeRate = getMPFeeRate();
+    if (method === 'card') {
+        const gross = feeRate > 0 ? total / (1 - feeRate) : total;
+        if (cardInput) cardInput.value = money(gross);
+        if (cashInput) cashInput.value = '';
+    } else if (method === 'mixed') {
+        if (cardInput) cardInput.value = '';
+        if (cashInput && parseFloat(cashInput.value || 0) === 0) cashInput.value = '';
+        const cash = Math.max(0, parseFloat(cashInput?.value || 0) || 0);
+        if (cashInput && cash >= total - 0.01) {
+            if (cardInput) cardInput.value = '';
+        }
+    }
     if (cashInput) cashInput.placeholder = '0.00';
     if (cardInput) cardInput.placeholder = '0.00';
     calculatePaymentChange();
 }
 
 function calculatePaymentChange() {
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const { totalDiscount } = applyPromotionsToCart();
-    const total = subtotal - totalDiscount;
+    const total = currentCartTotal();
 
     const cashInput = document.getElementById('payCashAmount');
     const cardInput = document.getElementById('payCardAmount');
     const cashAmount = Math.max(0, parseFloat(cashInput?.value || 0) || 0);
-    const cardAmount = Math.max(0, parseFloat(cardInput?.value || 0) || 0);
+    const cardGross = Math.max(0, parseFloat(cardInput?.value || 0) || 0);
+
+    const feeRate = getMPFeeRate();
+    const feeActive = (paymentMethod === 'card' || paymentMethod === 'mixed') && feeRate > 0;
+
+    // En mixto, si el efectivo no cubre el total y no hay monto tarjeta, autocompleta el resto por tarjeta (con recargo)
+    if (paymentMethod === 'mixed' && cardInput) {
+        if (cashAmount >= total - 0.01) {
+            cardInput.value = '';
+        } else if (cardGross === 0 && cashAmount > 0) {
+            const rest = Math.max(0, total - cashAmount);
+            cardInput.value = feeRate > 0 ? money(rest / (1 - feeRate)) : money(rest);
+        }
+    }
+    const cardGrossFinal = Math.max(0, parseFloat(cardInput?.value || 0) || 0);
+    const cardNet = feeActive ? cardGrossFinal * (1 - feeRate) : cardGrossFinal;
+    const cardFee = cardGrossFinal - cardNet;
 
     let received = 0;
     if (paymentMethod === 'cash') received = cashAmount;
-    else if (paymentMethod === 'card') received = cardAmount;
-    else if (paymentMethod === 'mixed') received = cashAmount + cardAmount;
+    else if (paymentMethod === 'card') received = cardNet;
+    else if (paymentMethod === 'mixed') received = cashAmount + cardNet;
 
     const receivedEl = document.getElementById('payReceived');
     const requiredEl = document.getElementById('payRequired');
-    if (receivedEl) receivedEl.textContent = '$' + received.toFixed(2);
-    if (requiredEl) requiredEl.textContent = '$' + total.toFixed(2);
+    if (receivedEl) receivedEl.textContent = '$' + money(received);
+    if (requiredEl) requiredEl.textContent = '$' + money(total);
     const cashRead = document.getElementById('payCashReadout');
     const cardRead = document.getElementById('payCardReadout');
-    if (cashRead) cashRead.textContent = '$' + cashAmount.toFixed(2);
-    if (cardRead) cardRead.textContent = '$' + cardAmount.toFixed(2);
+    if (cashRead) cashRead.textContent = '$' + money(cashAmount);
+    if (cardRead) cardRead.textContent = '$' + money(cardNet);
 
     if (paymentMethod === 'mixed') {
-        const faltaCash = Math.max(0, total - cardAmount);
+        const faltaCash = Math.max(0, total - cardNet);
         const faltaCard = Math.max(0, total - cashAmount);
-        if (cashInput) cashInput.placeholder = faltaCash > 0.01 ? 'Falta $' + faltaCash.toFixed(2) : 'Completo';
-        if (cardInput) cardInput.placeholder = faltaCard > 0.01 ? 'Falta $' + faltaCard.toFixed(2) : 'Completo';
+        if (cashInput) cashInput.placeholder = faltaCash > 0.01 ? 'Falta $' + money(faltaCash) : 'Completo';
+        if (cardInput) cardInput.placeholder = faltaCard > 0.01 ? 'Falta $' + money(faltaCard) : 'Completo';
     }
+
+    renderCardFee(feeActive ? cardGrossFinal : 0, cardNet, cardFee, feeRate);
+    if (cardInput && cardInput.parentElement) cardInput.parentElement.classList.toggle('has-fee', feeActive && cardGrossFinal > 0);
 
     const missingEl = document.getElementById('paymentMissing');
     const missingAmountEl = document.getElementById('paymentMissingAmount');
@@ -6623,16 +6686,47 @@ function calculatePaymentChange() {
     const missing = total - received;
     if (missing > 0.01) {
         if (missingEl) missingEl.style.display = 'block';
-        if (missingAmountEl) missingAmountEl.textContent = '$' + missing.toFixed(2);
+        if (missingAmountEl) missingAmountEl.textContent = '$' + money(missing);
         if (changeBox) changeBox.style.display = 'none';
     } else {
         if (missingEl) missingEl.style.display = 'none';
         const change = received - total;
         if (changeBox) changeBox.style.display = change > 0.01 ? 'flex' : 'none';
-        if (changeEl) changeEl.textContent = '$' + Math.max(0, change).toFixed(2);
+        if (changeEl) changeEl.textContent = '$' + money(Math.max(0, change));
     }
 
     if (confirmBtn) confirmBtn.disabled = received < total - 0.01;
+}
+
+function renderCardFee(gross, net, fee, feeRate) {
+    const box = document.getElementById('payCardFeeBox');
+    if (!box) return;
+    const show = paymentMethod === 'card' || paymentMethod === 'mixed';
+    box.style.display = show ? 'block' : 'none';
+    const warn = document.getElementById('payFeeWarn');
+    const note = document.getElementById('payFeeNote');
+    const label = document.getElementById('payFeeLabel');
+    const base = document.getElementById('payFeeBase');
+    const amount = document.getElementById('payFeeAmount');
+    const grossEl = document.getElementById('payFeeGross');
+    if (!warn || !note || !label || !base || !amount || !grossEl) return;
+
+    const rate = activeTerminal && activeTerminal.commission_rate ? parseFloat(activeTerminal.commission_rate) : 0;
+    if (feeRate > 0) {
+        warn.style.display = 'none';
+        note.style.display = 'block';
+        label.textContent = `Comisión MP (${rate.toLocaleString('es-MX')}% + IVA)`;
+        base.textContent = '$' + money(net);
+        amount.textContent = '-' + '$' + money(fee);
+        grossEl.textContent = '$' + money(gross);
+    } else {
+        warn.style.display = 'block';
+        note.style.display = 'none';
+        label.textContent = 'Comisión MP';
+        base.textContent = '$0.00';
+        amount.textContent = '$0.00';
+        grossEl.textContent = '$0.00';
+    }
 }
 
 async function confirmPayment() {
@@ -6645,13 +6739,14 @@ async function confirmPayment() {
         forceShiftLogin('No puedes vender sin un turno de caja abierto. Inicia sesión de nuevo para abrir uno.');
         return;
     }
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) - applyPromotionsToCart().totalDiscount;
+    const total = currentCartTotal();
     let received = 0;
     const cashAmount = parseFloat(document.getElementById('payCashAmount')?.value || 0);
     const cardAmount = parseFloat(document.getElementById('payCardAmount')?.value || 0);
+    const cardNet = getCardNet(cardAmount);
     if (paymentMethod === 'cash') received = cashAmount;
-    else if (paymentMethod === 'card') received = cardAmount;
-    else if (paymentMethod === 'mixed') received = cashAmount + cardAmount;
+    else if (paymentMethod === 'card') received = cardNet;
+    else if (paymentMethod === 'mixed') received = cashAmount + cardNet;
 
     if (received < total - 0.01) {
         showToast('El monto recibido debe ser igual o mayor al total', 'error');

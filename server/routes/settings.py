@@ -43,6 +43,17 @@ def get_settings():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@settings_bp.route('/terminals', methods=['GET'])
+@jwt_required()
+@require_permission('sales', 'view')
+def get_terminales():
+    try:
+        db = Database(get_db_path())
+        terminals = db.fetch_all('SELECT * FROM terminals WHERE active = 1')
+        return jsonify([dict(t) for t in terminals]), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @settings_bp.route('/categories', methods=['POST'])
 @jwt_required()
 @require_permission('products', 'create')
