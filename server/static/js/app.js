@@ -2699,6 +2699,12 @@ let currentInvSubview = 'cards';
 let inventoryData = [];
 let invFilter = 'all';
 let invDetailProductId = null;
+let invSearchRenderTimer = null;
+
+function inventoryRenderDebounce() {
+    const v = document.getElementById('inventorySearch')?.value || '';
+    return looksLikeBarcode(v.trim()) ? 250 : 60;
+}
 
 async function loadReports() {
     defaultSalesRange();
@@ -3077,7 +3083,8 @@ function onInventorySearchChange() {
     const v = document.getElementById('inventorySearch')?.value || '';
     const clearBtn = document.getElementById('invSearchClear');
     if (clearBtn) clearBtn.style.display = v ? 'block' : 'none';
-    renderInventoryView();
+    clearTimeout(invSearchRenderTimer);
+    invSearchRenderTimer = setTimeout(() => renderInventoryView(), inventoryRenderDebounce());
 }
 
 function clearInventorySearch() {
@@ -3100,6 +3107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!v) return;
         e.preventDefault();
         if (!/^\d{4,}$/.test(v)) return;
+        clearTimeout(invSearchRenderTimer);
         try {
             const product = await apiCall(`/products/barcode/${encodeURIComponent(v)}`);
             inp.value = '';
