@@ -121,20 +121,7 @@ POS-EXPENDIO-BB/
 │   │   ├── index.html
 │   │   └── ... (otros HTML)
 │   └── static/                 # Archivos estáticos (CSS, JS, iconos)
-├── mobile/
-│   ├── lib/                   # Código Flutter
-│   │   ├── main.dart
-│   │   ├── models/            # Modelos de datos
-│   │   ├── screens/           # Pantallas
-│   │   │   ├── login.dart
-│   │   │   ├── home.dart
-│   │   │   ├── products.dart
-│   │   │   ├── reports.dart
-│   │   │   └── sync.dart
-│   │   ├── services/          # Servicios API
-│   │   └── widgets/           # Widgets personalizados
-│   └── pubspec.yaml
-└── docs/                       # Documentación
+└── docs/                       # Documentación (er_diagram.png)
     └── README.md               # Este archivo
 ```
 

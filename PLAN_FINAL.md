@@ -4,8 +4,8 @@
 - **Nombre:** Pan Bimbo POS
 - **Tipo:** Sistema de Punto de Venta
 - **Negocio:** Expendio de pan bimbo y productos barcel/botanas
-- **Versión:** 1.0
-- **Fecha:** 01/09/2026
+- **Versión:** 1.1.32
+- **Fecha:** 13/09/2026
 
 ## Resumen
 Sistema POS completo con POS ligero para Windows 8.1 y app móvil Flutter.
@@ -56,8 +56,8 @@ Base de datos SQLite local con sincronización opcional vía Supabase.
 - [x] Fase 3: Sistema de ventas ← Completada 01/09/2026
 - [x] Fase 4: Control de caducidad ← Completada 01/09/2026
 - [x] Fase 5: Cortes de caja ← Completada 01/09/2026
-- [ ] Fase 6: App móvil
-- [ ] Fase 7: Sincronización
-- [ ] Fase 8: Reportes
-- [ ] Fase 9: Terminales de pago
-- [ ] Fase 10: Pruebas finales
+- [ ] Fase 6: App móvil (Flutter) — no iniciada
+- [ ] Fase 7: Sincronización (Supabase) — no iniciada
+- [~] Fase 8: Reportes — en curso (tablas por día/departamento listas, faltan gráficas)
+- [x] Fase 9: Terminales de pago (Mercado Pago Point) ← Completada 08/09/2026
+- [ ] Fase 10: Pruebas finales y documentación
