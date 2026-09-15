@@ -4165,6 +4165,7 @@ function clearAdjustmentsSelection() {
     if (curEl) curEl.textContent = '--';
     if (warnEl) warnEl.style.display = 'none';
     if (submitBtn) submitBtn.disabled = true;
+    EnterNav.deactivate('adjustments');
 }
 
 function showAdjustmentProduct(product) {
@@ -4221,6 +4222,12 @@ function showAdjustmentProduct(product) {
 
     card.style.display = 'block';
     refreshAdjustmentsForm();
+    EnterNav.activate({
+        scopeKey: 'adjustments',
+        container: card,
+        primarySelector: '#submitAdjustmentBtn',
+        skipSelectors: ['.adjustments-sign-btn', '#submitAdjustmentBtn']
+    });
 
     const recentList = document.getElementById('adjustmentsRecentList');
     if (recentList) {
@@ -4340,9 +4347,8 @@ async function submitAdjustment(event) {
             reason
         });
         showToast(result.message, 'success');
-        document.getElementById('adjustmentsReason').value = '';
-        const updated = await apiCall('/adjustments/product/' + adjustmentsProduct.id);
-        showAdjustmentProduct(updated);
+        clearAdjustmentsSelection();
+        focusAdjustmentsSearch();
     } catch (error) {
         let msg = 'Error al realizar el ajuste';
         try { msg = JSON.parse(error.message).error || msg; } catch {}
