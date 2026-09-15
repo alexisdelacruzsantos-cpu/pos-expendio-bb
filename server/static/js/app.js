@@ -3312,7 +3312,7 @@ function showQuickAddStockModal(product) {
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:14px">
             <div style="font-size:14px;color:#92400e"><strong>Producto:</strong> ${escapeHtml(product.name)}</div>
             <div style="font-size:14px;color:#92400e"><strong>Código:</strong> ${escapeHtml(product.barcode || '—')}</div>
-            <div style="font-size:14px;color:#92400e"><strong>Stock actual:</strong> <span id="quickCurrentStock">${currentStock}</span> u.</div>
+            <div style="font-size:16px;color:#b45309;font-weight:700"><strong>Stock actual:</strong> <span id="quickCurrentStock">${currentStock}</span> u.</div>
         </div>
         <form id="quickAddForm" onsubmit="submitQuickAddStock(event, ${product.id}, ${hasLots})">
             <div class="form-group">
