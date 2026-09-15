@@ -16,6 +16,9 @@ Guía para trabajar en este repo sin romper las reglas operativas del sistema.
 
 1. **Versión**: los cambios que deban llegar a las tiendas **suben `APP_VERSION`**
    en `server/config.py` y se commitean como `release <v>: <desc>`. Sin bump = no llega.
+   El commit **debe subirse a `origin/main`** (`git push origin main`): las tiendas
+   consultan `config.py` **del repo público en GitHub** (API), no del repo local;
+   un release sin `push` se queda "sin actualizaciones pendientes" en las tiendas.
 2. **Restart en updates**: `apply()` termina con `_restart_script()` (en
    `updates.py`); NO reemplazar por otra lógica de reinicio. Bajo systemd se detecta
    `INVOCATION_ID` para no relanzar con `nohup` (deja que `Restart=always` lo haga).
