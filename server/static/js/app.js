@@ -3794,6 +3794,7 @@ function showAddStockModal(productId, productName) {
             <form id="addStockForm" onsubmit="submitAddDirectStock(event, ${productId})">
                 <div class="form-group">
                     <label>Cantidad *</label>
+                    <div style="font-size:13px;color:#1d4ed8;font-weight:600;margin-bottom:6px">📦 Stock actual: ${generalStock} pzas</div>
                     <input type="number" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
                 </div>
                 <div class="form-group">
