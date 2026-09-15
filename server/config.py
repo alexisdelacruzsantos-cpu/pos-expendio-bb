@@ -5,7 +5,7 @@ DB_PATH = os.environ.get('POS_DB_PATH', os.path.join(BASE_DIR, 'static', 'data',
 
 # Versión del sistema (único punto de referencia para el módulo de actualizaciones).
 # Cada release que deba llegar a las tiendas sube este número y se commitea en main.
-APP_VERSION = "1.1.36"
+APP_VERSION = "1.1.37"
 
 # Repositorio público de actualizaciones (GitHub API, sin token).
 GITHUB_OWNER = "alexisdelacruzsantos-cpu"

@@ -272,6 +272,15 @@ function setupGlobalKeys() {
                 confirmPayment();
                 return;
             }
+            if (e.key === 'F12') {
+                e.preventDefault();
+                return;
+            }
+            if (paymentOpen && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                e.preventDefault();
+                cyclePaymentMethod(e.key === 'ArrowRight' ? 1 : -1);
+                return;
+            }
             return;
         }
 
@@ -279,10 +288,19 @@ function setupGlobalKeys() {
             e.preventDefault();
             const overlay = document.getElementById('paymentOverlay');
             if (overlay && overlay.style.display === 'flex') {
+                if (isAnyInput) {
+                    return;
+                }
                 confirmPayment();
             } else {
                 openPaymentModal();
             }
+            return;
+        }
+
+        if (paymentOpen && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !isAnyInput) {
+            e.preventDefault();
+            cyclePaymentMethod(e.key === 'ArrowRight' ? 1 : -1);
             return;
         }
 
@@ -6796,6 +6814,19 @@ function selectPayMethod(method) {
     if (cashInput) cashInput.placeholder = '0.00';
     if (cardInput) cardInput.placeholder = '0.00';
     calculatePaymentChange();
+}
+
+function cyclePaymentMethod(dir) {
+    const methods = ['cash', 'card', 'mixed'];
+    const idx = methods.indexOf(paymentMethod);
+    const next = methods[(idx + dir + methods.length) % methods.length];
+    selectPayMethod(next);
+    const inputId = next === 'card' ? 'payCardAmount' : 'payCashAmount';
+    const inp = document.getElementById(inputId);
+    if (inp) {
+        inp.focus();
+        inp.select();
+    }
 }
 
 function calculatePaymentChange() {
