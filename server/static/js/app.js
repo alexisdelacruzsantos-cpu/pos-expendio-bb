@@ -125,7 +125,18 @@ function setupFullscreenOnFirstInteraction() {
 
 function setupEscapeBlocker() {
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && isFullscreenActive()) {
+        if (e.key !== 'Escape') return;
+        const lotSel = document.getElementById('lotSelectorOverlay');
+        if (lotSel) {
+            // El selector de precio/lote se cierra con ESC sin salir del fullscreen
+            // ni perder el foco de la barra de búsqueda.
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            closeLotSelector();
+            return;
+        }
+        if (isFullscreenActive()) {
             e.preventDefault();
             e.stopPropagation();
             if (e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -237,7 +248,7 @@ function setupGlobalKeys() {
             }
             const lotSel = document.getElementById('lotSelectorOverlay');
             if (lotSel) {
-                lotSel.remove();
+                closeLotSelector();
                 return;
             }
             const lotSearch = document.getElementById('lotSearchOverlay');
@@ -4743,23 +4754,68 @@ function openLotSelector(productId, lots, productPrice) {
         </div>
     `;
     document.body.appendChild(overlay);
+    setLotSelectorSelection(0);
     setTimeout(() => {
-        const escHandler = (e) => {
-            if (e.key === 'Escape') {
-                closeLotSelector();
-                document.removeEventListener('keydown', escHandler);
+        const keyHandler = (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                moveLotSelectorSelection(e.key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+            if (e.key === 'Enter') {
+                const cur = document.getElementById('lotSelectorOverlay');
+                if (!cur) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const active = cur.querySelector('.lot-option.active');
+                const option = active || cur.querySelector('.lot-option');
+                if (option) option.click();
             }
         };
-        overlay._escHandler = escHandler;
-        document.addEventListener('keydown', escHandler);
+        overlay._keyHandler = keyHandler;
+        document.addEventListener('keydown', keyHandler, true);
     }, 50);
+}
+
+function getLotSelectorOptions() {
+    const overlay = document.getElementById('lotSelectorOverlay');
+    return overlay ? Array.from(overlay.querySelectorAll('.lot-option')) : [];
+}
+
+function setLotSelectorSelection(index) {
+    const options = getLotSelectorOptions();
+    if (options.length === 0) return -1;
+    index = Math.max(0, Math.min(index, options.length - 1));
+    options.forEach((o, i) => {
+        o.classList.toggle('active', i === index);
+        o.setAttribute('aria-current', i === index ? 'true' : 'false');
+    });
+    const overlay = document.getElementById('lotSelectorOverlay');
+    const body = overlay && overlay.querySelector('.lot-selector-body');
+    if (body && options[index]) {
+        const target = options[index].offsetTop - body.clientHeight / 2;
+        body.scrollTop = Math.max(0, target);
+    }
+    return index;
+}
+
+function moveLotSelectorSelection(dir) {
+    const options = getLotSelectorOptions();
+    if (options.length === 0) return;
+    const current = options.findIndex(o => o.classList.contains('active'));
+    setLotSelectorSelection(current === -1 ? 0 : current + dir);
 }
 
 function closeLotSelector() {
     const el = document.getElementById('lotSelectorOverlay');
     if (el) {
-        if (el._escHandler) document.removeEventListener('keydown', el._escHandler);
+        if (el._keyHandler) document.removeEventListener('keydown', el._keyHandler, true);
         el.remove();
+    }
+    focusPosSearchBar();
+    if (!isFullscreenActive()) {
+        setTimeout(lockFullscreen, 30);
     }
 }
 

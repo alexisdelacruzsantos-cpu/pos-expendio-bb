@@ -4653,6 +4653,13 @@ td.name-cell {
     padding: 16px;
     max-height: 60vh;
     overflow-y: auto;
+    position: relative;
+}
+
+.lot-selector-body .lot-option.active {
+    border-color: var(--primary);
+    background: #dbeafe;
+    box-shadow: 0 0 0 2px rgba(0, 114, 206, 0.3);
 }
 
 .lot-selector-body .lot-option {
