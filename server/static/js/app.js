@@ -1206,6 +1206,11 @@ function setupSectionShortcuts() {
             if (!document.getElementById('salesSection').classList.contains('active')) {
                 navigateTo('sales');
             }
+        } else if (e.key === 'F4') {
+            e.preventDefault();
+            if (!document.getElementById('adjustmentsSection').classList.contains('active')) {
+                navigateTo('adjustments');
+            }
         }
     });
 }
