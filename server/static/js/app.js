@@ -3149,8 +3149,7 @@ function updateAdjustmentPreview() {
     } else {
         warningEl.textContent = '';
     }
-    const hasReason = reasonEl && reasonEl.value.trim();
-    submitBtn.disabled = !hasReason || !Number.isFinite(newQtyEl.valueAsNumber);
+    submitBtn.disabled = !Number.isFinite(newQtyEl.valueAsNumber);
 }
 
 function onAdjustmentAmountInput() {
