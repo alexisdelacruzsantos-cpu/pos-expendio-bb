@@ -143,6 +143,19 @@
         // por eso se intenta al cargar y se reintenta en el primer teclado/clic.
         // ESC no la quita: se previene y, si el navegador (Firefox) igual sale, se reentra.
         (function () {
+            // En modo kiosko (firefox -kiosk) NO se usa la Fullscreen API: la ventana
+            // ya está en pantalla completa y ESC/F11 no la quitan. Se recuerda para
+            // el dashboard. Se activa con ?kiosk=1 y se desactiva con ?kiosk=0.
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('kiosk') === '1') {
+                try { localStorage.setItem('pos_kiosk', '1'); } catch (_) {}
+                return;
+            }
+            if (params.get('kiosk') === '0') {
+                try { localStorage.removeItem('pos_kiosk'); } catch (_) {}
+            }
+            try { if (localStorage.getItem('pos_kiosk') === '1') return; } catch (_) {}
+
             function isFs() {
                 return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
             }

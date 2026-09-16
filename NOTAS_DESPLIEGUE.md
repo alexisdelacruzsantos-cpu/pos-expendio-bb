@@ -184,6 +184,34 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultP
 
 ---
 
+## 8. Modo kiosko: ESC/F11 no deben salir de pantalla completa
+
+**Problema:** con la Fullscreen API (`element.requestFullscreen()`), ESC sale de
+pantalla completa. **No existe `about:config` que lo evite**: `browser.fullscreen.exit_on_escape`
+solo aplica al fullscreen del navegador (F11 / pantalla nativa), **no** a la API web.
+Firefox sí respeta `event.preventDefault()` en el `keydown` de ESC, pero si por algo se
+escapa, reentrar es imposible porque ESC no cuenta como gesto de usuario (el navegador
+rechaza el `requestFullscreen()`).
+
+**Solución de raíz:** abrir Firefox en **modo kiosko**, donde ESC y F11 no salen de
+pantalla completa (solo `Alt+F4` cierra la ventana). La app detecta `?kiosk=1` y deja de
+usar la Fullscreen API (`KIOSK_MODE` en `server/static/js/app.js`), así ESC solo cierra
+los menús (Resultados de búsqueda, historial, lote, etc.).
+
+Lanzador incluido en el repo: `server/iniciar_kiosko.bat` (sin `pause`, para la tarea
+ONLOGON). Apuntar la tarea a él:
+```
+schtasks /Create /TN "POS Expendio BB" /TR C:\POS\pos-expendio-bb\server\iniciar_kiosko.bat /SC ONLOGON /RL LIMITED /F
+```
+(requiere elevación, ver #5). Si ya existía `C:\POS\iniciar_silencioso.bat`, basta con
+reemplazar su contenido por el de `server/iniciar_kiosko.bat`.
+
+- Para volver al fullscreen de la API (sin kiosko, p. ej. para pruebas) abrir
+  `http://127.0.0.1:5000/?kiosk=0`.
+- En modo kiosko la única salida es `Alt+F4` (o Task Manager).
+
+---
+
 ## Notas de la VM de prueba (usadas durante el despliegue)
 
 - VM: `Windows 8.1`, carpeta compartida `compartida` = `/home/alexis/Shared` → `Z:` en el guest.

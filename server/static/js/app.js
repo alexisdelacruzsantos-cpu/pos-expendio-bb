@@ -79,11 +79,33 @@ let userGestureDetected = false;
 let lastFsRequest = 0;
 let wantsFullscreen = false;
 
+// Modo kiosko (Firefox `-kiosk`): el navegador ya abre en pantalla completa y
+// ESC/F11 no la quitan. En este modo la app NO usa la Fullscreen API: así ESC
+// solo cierra menús y nunca saca de pantalla completa. Se activa al entrar con
+// `?kiosk=1` (el launcher del POS) y se recuerda para el resto de la sesión.
+const KIOSK_MODE = (function () {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('kiosk') === '1') {
+            localStorage.setItem('pos_kiosk', '1');
+            return true;
+        }
+        if (params.get('kiosk') === '0') {
+            localStorage.removeItem('pos_kiosk');
+            return false;
+        }
+        return localStorage.getItem('pos_kiosk') === '1';
+    } catch (_) {
+        return false;
+    }
+})();
+
 function isFullscreenActive() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
 }
 
 function lockFullscreen() {
+    if (KIOSK_MODE) return;
     if (!isFullscreenActive() && userGestureDetected) {
         wantsFullscreen = true;
         enterFullscreen();
@@ -91,6 +113,7 @@ function lockFullscreen() {
 }
 
 function requestFullscreenNow() {
+    if (KIOSK_MODE) return;
     const el = document.documentElement;
     if (el.requestFullscreen) {
         try {
@@ -107,6 +130,7 @@ function requestFullscreenNow() {
 }
 
 function enterFullscreen() {
+    if (KIOSK_MODE) return;
     if (!userGestureDetected) return;
     if (isFullscreenActive()) return;
     if (Date.now() - lastFsRequest < 2000) return;
@@ -115,6 +139,7 @@ function enterFullscreen() {
 }
 
 function setupFullscreenOnFirstInteraction() {
+    if (KIOSK_MODE) return;
     const markGesture = () => {
         userGestureDetected = true;
         if (wantsFullscreen && currentUser && !isFullscreenActive()) {
@@ -139,6 +164,7 @@ function setupFullscreenOnFirstInteraction() {
 }
 
 function setupEscapeBlocker() {
+    if (KIOSK_MODE) return;
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         const lotSel = document.getElementById('lotSelectorOverlay');
@@ -152,14 +178,16 @@ function setupEscapeBlocker() {
             return;
         }
         if (isFullscreenActive()) {
+            // Solo se evita que ESC saque de pantalla completa (Firefox respeta
+            // preventDefault). No se corta la propagación para que el manejador
+            // normal cierre los menús (Resultados de búsqueda, historial, etc.).
             e.preventDefault();
-            e.stopPropagation();
-            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
         }
     }, { capture: true });
 }
 
 function setupFullscreenGuard() {
+    if (KIOSK_MODE) return;
     const anySearchOpen = () => document.getElementById('posSearchOverlay')?.style.display === 'flex' ||
                                   document.getElementById('adjustmentsSearchOverlay')?.style.display === 'flex';
     document.addEventListener('fullscreenchange', () => {

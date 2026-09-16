@@ -26,8 +26,9 @@ echo  Cierra esta ventana o presiona Ctrl+C para detener.
 echo ===================================
 echo.
 
-REM Abre el navegador en cuanto el servidor apunte
-start "" /b cmd /c "ping -n 3 127.0.0.1 >nul & start http://127.0.0.1:5000"
+REM Abre Firefox en modo kiosko (pantalla completa que ESC/F11 NO quitan)
+REM en cuanto el servidor apunte. Si no hay Firefox, cae al navegador por defecto.
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$p1=$env:ProgramFiles+'\Mozilla Firefox\firefox.exe'; $p2=${env:ProgramFiles(x86)}+'\Mozilla Firefox\firefox.exe'; $ff=@($p1,$p2)|?{Test-Path $_}|Select -First 1; Start-Sleep -Seconds 3; if($ff){Start-Process -FilePath $ff -ArgumentList '-kiosk','http://127.0.0.1:5000/?kiosk=1'}else{Start-Process 'http://127.0.0.1:5000/?kiosk=1'}"
 
 "..\venv\Scripts\python.exe" app.py 1>>"%LOG%" 2>&1
 
