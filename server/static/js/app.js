@@ -90,11 +90,7 @@ function lockFullscreen() {
     }
 }
 
-function enterFullscreen() {
-    if (!userGestureDetected) return;
-    if (isFullscreenActive()) return;
-    if (Date.now() - lastFsRequest < 2000) return;
-    lastFsRequest = Date.now();
+function requestFullscreenNow() {
     const el = document.documentElement;
     if (el.requestFullscreen) {
         try {
@@ -108,6 +104,14 @@ function enterFullscreen() {
     } else if (el.msRequestFullscreen) {
         try { el.msRequestFullscreen(); } catch (_) {}
     }
+}
+
+function enterFullscreen() {
+    if (!userGestureDetected) return;
+    if (isFullscreenActive()) return;
+    if (Date.now() - lastFsRequest < 2000) return;
+    lastFsRequest = Date.now();
+    requestFullscreenNow();
 }
 
 function setupFullscreenOnFirstInteraction() {
@@ -152,7 +156,16 @@ function setupFullscreenGuard() {
             const modalOpen = document.getElementById('paymentOverlay')?.style.display === 'flex' ||
                                document.getElementById('modalOverlay')?.style.display === 'flex' ||
                                anySearchOpen();
-            if (!modalOpen) wantsFullscreen = true;
+            if (!modalOpen) {
+                wantsFullscreen = true;
+                requestFullscreenNow();
+                setTimeout(() => {
+                    if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
+                }, 80);
+                setTimeout(() => {
+                    if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
+                }, 250);
+            }
         }
     });
     window.addEventListener('blur', () => {
@@ -174,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFullscreenOnFirstInteraction();
     setupFullscreenGuard();
     setupEscapeBlocker();
+    setupFunctionKeyBlocker();
     setupSectionShortcuts();
     setupSalesFocusGuard();
     setupAdjustmentsFocusGuard();
@@ -430,6 +444,7 @@ function checkAuth() {
     document.getElementById('userRole').textContent = currentUser.role.toUpperCase();
 
     applyRoleVisibility();
+    wantsFullscreen = true;
 
     apiCall('/auth/validate').catch(() => {});
 
@@ -1199,6 +1214,31 @@ function navigateTo(section) {
         document.querySelectorAll('.topbar-tab').forEach(i => i.classList.remove('active'));
         showSection(section);
     }
+}
+
+function setupFunctionKeyBlocker() {
+    const blocked = new Set(['F1','F2','F3','F5','F6','F7','F8','F9','F10','F11','F12']);
+    const blockedCombos = [
+        ['Control','f'], ['Control','F'], ['Control','p'], ['Control','P'],
+        ['Control','s'], ['Control','S'], ['Control','r'], ['Control','R']
+    ];
+    document.addEventListener('keydown', (e) => {
+        const activeEl = document.activeElement;
+        const inLocalInput = activeEl && (
+            activeEl.id === 'posSearchInput' || activeEl.id === 'adjustmentsSearchInput' ||
+            activeEl.id === 'payCashAmount' || activeEl.id === 'payCardAmount'
+        );
+        let comboMatch = false;
+        for (const [k, v] of blockedCombos) {
+            if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === v.toLowerCase()) { comboMatch = true; break; }
+        }
+        if (blocked.has(e.key) || comboMatch) {
+            if (!inLocalInput || blocked.has(e.key)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    }, { capture: true });
 }
 
 function setupSectionShortcuts() {
