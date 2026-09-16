@@ -184,6 +184,17 @@ function setupEscapeBlocker() {
             e.preventDefault();
         }
     }, { capture: true });
+    document.addEventListener('keyup', (e) => {
+        if (e.key !== 'Escape') return;
+        if (isFullscreenActive()) {
+            // Captura la keyup de ESC para evitar que el navegador saque
+            // de fullscreen si el preventDefault del keydown no fue suficiente.
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            if (!isFullscreenActive()) requestFullscreenNow();
+        }
+    }, { capture: true });
 }
 
 function setupFullscreenGuard() {
