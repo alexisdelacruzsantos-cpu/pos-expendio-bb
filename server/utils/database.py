@@ -401,7 +401,6 @@ class Database:
         
         default_users = [
             ("admin", "admin123", "Administrador Principal", "admin", "0000"),
-            ("supervisor", "super123", "Supervisor", "supervisor", "0001"),
             ("cajero", "cajero123", "Cajero Principal", "cashier", "0002")
         ]
         
@@ -423,14 +422,6 @@ class Database:
             ("cashier", "reports", 1, 0, 0, 0),
             ("cashier", "settings", 0, 0, 0, 0),
             ("cashier", "users", 0, 0, 0, 0),
-            
-            # Supervisor
-            ("supervisor", "sales", 1, 1, 0, 0),
-            ("supervisor", "products", 1, 0, 1, 0),
-            ("supervisor", "cash_register", 1, 1, 0, 1),
-            ("supervisor", "reports", 1, 1, 0, 0),
-            ("supervisor", "settings", 1, 0, 0, 0),
-            ("supervisor", "users", 1, 0, 0, 0),
             
             # Administrador
             ("admin", "sales", 1, 1, 1, 1),
@@ -502,6 +493,15 @@ class Database:
                 pass
         self.backfill_movement_snapshots()
         self.migrate_existing_stock()
+        self.cleanup_supervisor_role()
+
+    def cleanup_supervisor_role(self):
+        try:
+            # Eliminar usuario supervisor y sus permisos
+            self.execute("DELETE FROM users WHERE username = 'supervisor'")
+            self.execute("DELETE FROM permissions WHERE role = 'supervisor'")
+        except Exception:
+            pass
 
 
     def backfill_movement_snapshots(self):

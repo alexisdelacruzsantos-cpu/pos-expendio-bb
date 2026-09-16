@@ -7002,3 +7002,25 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
     padding: 12px;
     font-size: 15px;
 }
+
+/* Matriz de Permisos */
+.perm-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    padding: 4px;
+}
+
+.perm-checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0072ce;
+    border-radius: 4px;
+}
+
+.perm-row:hover {
+    background-color: #f9fafb;
+}

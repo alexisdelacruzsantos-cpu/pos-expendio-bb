@@ -1006,7 +1006,7 @@ function startCloseAndOpenFlow() {
     const b = document.getElementById('shiftGateBody');
     const f = document.getElementById('shiftGateFoot');
     t.textContent = isOwner ? '🔒 Cerrar turno y abrir nuevo' : '🔒 Cerrar turno ajeno y abrir nuevo';
-    s.textContent = isOwner ? 'Confirma el conteo físico y abre un nuevo turno' : 'Como supervisor/admin, primero confirma la contraseña del dueño';
+    s.textContent = isOwner ? 'Confirma el conteo físico y abre un nuevo turno' : 'Como administrador, primero confirma la contraseña del dueño';
     b.innerHTML = `
         <div class="form-section-title">🔒 Cierre del turno actual</div>
         <div style="background:#f9fafb;border-radius:8px;padding:10px 12px;margin-bottom:12px">
@@ -6766,7 +6766,7 @@ function renderAllShiftsTable(shifts) {
         return;
     }
     const today = localDateStr(new Date());
-    const canEdit = permissions?.cash_register?.can_edit || permissions?.cash_register?.can_delete || currentUser?.role === 'admin' || currentUser?.role === 'supervisor';
+    const canEdit = permissions?.cash_register?.can_edit || permissions?.cash_register?.can_delete || currentUser?.role === 'admin';
 
     tbody.innerHTML = shifts.map(s => {
         const openDateStr = s.open_date ? localDateStr(s.open_date) : '';
@@ -7136,37 +7136,186 @@ async function loadCategoriesSettings() {
     }
 }
 
-async function loadUsersSettings() {
+let cachedSettingsUsers = [];
+let cashierPermissionsState = {};
+
+async function loadUsersSettings(activeTab = 'users') {
     try {
-        const data = await apiCall('/settings/');
-        const content = document.getElementById('settingsContent');
+        const [settingsData, permsData] = await Promise.all([
+            apiCall('/settings/'),
+            apiCall('/settings/permissions').catch(() => ({ cashier: {} }))
+        ]);
         
+        cachedSettingsUsers = settingsData.users || [];
+        cashierPermissionsState = (permsData && permsData.cashier) ? permsData.cashier : {};
+        
+        const content = document.getElementById('settingsContent');
+        if (!content) return;
+
+        const MODULE_DEFS = [
+            { key: 'sales', name: '🛒 Ventas y Cobro', desc: 'Permite realizar ventas, cobrar tickets y aplicar descuentos en el mostrador.', can_delete_label: 'Cancelar / Devoluciones' },
+            { key: 'products', name: '📦 Productos e Inventario', desc: 'Catálogo de artículos, ajuste de existencias y consulta de inventario.', can_delete_label: 'Eliminar producto' },
+            { key: 'cash_register', name: '💵 Turnos y Caja', desc: 'Apertura de turno, consulta de movimientos, corte y arqueo de caja.', can_delete_label: 'Cierre de turnos' },
+            { key: 'reports', name: '📊 Reportes y Estadísticas', desc: 'Visualización de reportes de venta, cortes pasados y métricas.', can_delete_label: 'Exportar / Borrar' },
+            { key: 'settings', name: '⚙️ Configuración del Sistema', desc: 'Ajustes globales, configuración de terminales y usuarios.', can_delete_label: 'Modificar ajustes' },
+        ];
+
         content.innerHTML = `
             ${settingsBackBar()}
-            <div class="section-header">
-                <h3>Usuarios</h3>
-                <button class="btn btn-primary" onclick="showAddUserModal()">+ Agregar</button>
+            <div class="section-header" style="margin-bottom:16px">
+                <div>
+                    <h3 style="margin:0;font-size:20px;font-weight:700">Gestión de Usuarios y Permisos</h3>
+                    <p style="margin:4px 0 0;color:var(--text-light);font-size:13px">Administra las cuentas de acceso y las funciones permitidas para el personal de caja.</p>
+                </div>
+                ${activeTab === 'users' ? '<button class="btn btn-primary" onclick="showAddUserModal()">+ Nuevo Usuario</button>' : ''}
             </div>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr>
-                </thead>
-                <tbody>
-                    ${data.users.map(u => `
-                        <tr>
-                            <td>${u.username}</td>
-                            <td>${u.full_name}</td>
-                            <td><span class="badge badge-info">${u.role}</span></td>
-                            <td>
-                                <button class="action-btn" onclick="editUser(${u.id})">Editar</button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+
+            <div class="reports-tabs" style="margin-bottom:20px">
+                <button class="tab-btn ${activeTab === 'users' ? 'active' : ''}" onclick="loadUsersSettings('users')">👥 Cuentas de Usuarios</button>
+                <button class="tab-btn ${activeTab === 'permissions' ? 'active' : ''}" onclick="loadUsersSettings('permissions')">🛡️ Permisos del Cajero</button>
+            </div>
+
+            ${activeTab === 'users' ? `
+                <div class="user-management-table-wrap" style="background:#fff;border-radius:10px;border:1px solid var(--border-color);overflow:hidden">
+                    <table class="data-table" style="margin:0">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Nombre Completo</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th style="text-align:right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cachedSettingsUsers.map(u => `
+                                <tr>
+                                    <td><strong>${escapeHtml(u.username)}</strong></td>
+                                    <td>${escapeHtml(u.full_name)}</td>
+                                    <td>
+                                        <span class="badge ${u.role === 'admin' ? 'badge-primary' : 'badge-info'}">
+                                            ${u.role === 'admin' ? '👑 Administrador' : '💼 Cajero'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge ${u.active ? 'badge-success' : 'badge-danger'}">
+                                            ${u.active ? '✓ Activo' : '✗ Inactivo'}
+                                        </span>
+                                    </td>
+                                    <td style="text-align:right">
+                                        <button class="action-btn" onclick="editUser(${u.id})">✏️ Editar / Clave</button>
+                                        ${u.role !== 'admin' ? `
+                                            <button class="action-btn" style="color:#d71920;margin-left:6px" onclick="confirmDeleteUser(${u.id}, '${escapeHtml(u.username)}')">🗑️ Desactivar</button>
+                                        ` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            ` : `
+                <div class="permissions-panel-card" style="background:#fff;border-radius:12px;border:1px solid var(--border-color);padding:20px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+                        <div>
+                            <h4 style="margin:0;font-size:16px;font-weight:700">Funciones permitidas para cuentas de Cajero</h4>
+                            <p style="margin:4px 0 0;font-size:13px;color:var(--text-light)">
+                                Marca o desmarca las funciones a las que los cajeros tendrán acceso. El usuario <strong>Administrador</strong> siempre cuenta con acceso total.
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveCashierPermissions()">💾 Guardar Permisos</button>
+                    </div>
+
+                    <div class="permissions-grid-table">
+                        <div class="perm-table-header" style="display:grid;grid-template-columns: 2.2fr 1fr 1fr 1fr 1.2fr;padding:10px 14px;background:#f3f4f6;border-radius:8px;font-weight:700;font-size:12px;text-transform:uppercase;color:#4b5563;margin-bottom:10px">
+                            <div>Módulo / Función</div>
+                            <div style="text-align:center">Ver / Acceso</div>
+                            <div style="text-align:center">Crear / Agregar</div>
+                            <div style="text-align:center">Editar / Cambiar</div>
+                            <div style="text-align:center">Eliminar / Cancelar</div>
+                        </div>
+
+                        ${MODULE_DEFS.map(mod => {
+                            const p = cashierPermissionsState[mod.key] || {};
+                            return `
+                                <div class="perm-row" style="display:grid;grid-template-columns: 2.2fr 1fr 1fr 1fr 1.2fr;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border-color)">
+                                    <div>
+                                        <div style="font-weight:600;font-size:14px;color:var(--text-color)">${mod.name}</div>
+                                        <div style="font-size:12px;color:var(--text-light);margin-top:2px">${mod.desc}</div>
+                                    </div>
+                                    <div style="text-align:center">
+                                        <label class="perm-checkbox-label">
+                                            <input type="checkbox" id="perm_${mod.key}_view" ${p.can_view ? 'checked' : ''} onchange="onPermCheckChange('${mod.key}', 'view', this.checked)">
+                                            <span class="perm-custom-check"></span>
+                                        </label>
+                                    </div>
+                                    <div style="text-align:center">
+                                        <label class="perm-checkbox-label">
+                                            <input type="checkbox" id="perm_${mod.key}_create" ${p.can_create ? 'checked' : ''} onchange="onPermCheckChange('${mod.key}', 'create', this.checked)">
+                                            <span class="perm-custom-check"></span>
+                                        </label>
+                                    </div>
+                                    <div style="text-align:center">
+                                        <label class="perm-checkbox-label">
+                                            <input type="checkbox" id="perm_${mod.key}_edit" ${p.can_edit ? 'checked' : ''} onchange="onPermCheckChange('${mod.key}', 'edit', this.checked)">
+                                            <span class="perm-custom-check"></span>
+                                        </label>
+                                    </div>
+                                    <div style="text-align:center">
+                                        <label class="perm-checkbox-label" title="${mod.can_delete_label}">
+                                            <input type="checkbox" id="perm_${mod.key}_delete" ${p.can_delete ? 'checked' : ''} onchange="onPermCheckChange('${mod.key}', 'delete', this.checked)">
+                                            <span class="perm-custom-check"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <div style="margin-top:20px;display:flex;justify-content:flex-end">
+                        <button class="btn btn-primary" onclick="saveCashierPermissions()">💾 Guardar Permisos de Cajero</button>
+                    </div>
+                </div>
+            `}
         `;
     } catch (error) {
-        showToast('Error al cargar usuarios', 'error');
+        showToast('Error al cargar configuración de usuarios: ' + error.message, 'error');
+    }
+}
+
+function onPermCheckChange(module, action, checked) {
+    if (!cashierPermissionsState[module]) {
+        cashierPermissionsState[module] = { can_view: 0, can_create: 0, can_edit: 0, can_delete: 0 };
+    }
+    cashierPermissionsState[module]['can_' + action] = checked ? 1 : 0;
+    
+    // Si se desmarca 'view', típicamente se desmarcan las demás acciones para coherencia
+    if (action === 'view' && !checked) {
+        ['create', 'edit', 'delete'].forEach(act => {
+            cashierPermissionsState[module]['can_' + act] = 0;
+            const el = document.getElementById(`perm_${module}_${act}`);
+            if (el) el.checked = false;
+        });
+    } else if (action !== 'view' && checked) {
+        // Si se marca cualquier permiso de edición/creación, asegurar que 'view' esté activo
+        cashierPermissionsState[module]['can_view'] = 1;
+        const el = document.getElementById(`perm_${module}_view`);
+        if (el) el.checked = true;
+    }
+}
+
+async function saveCashierPermissions() {
+    try {
+        const resp = await apiCall('/settings/permissions/cashier', 'PUT', cashierPermissionsState);
+        showToast('Permisos de cajero actualizados exitosamente', 'success');
+        
+        // Si el usuario actualmente logueado es cajero, actualizar sus permisos en memoria
+        if (currentUser && currentUser.role === 'cashier' && resp.permissions) {
+            permissions = resp.permissions;
+            localStorage.setItem('pos_permissions', JSON.stringify(permissions));
+            applyRoleVisibility();
+        }
+    } catch (error) {
+        showToast('Error al guardar permisos: ' + error.message, 'error');
     }
 }
 
@@ -9334,29 +9483,35 @@ function deletePromotion(id) {
 }
 
 function showAddUserModal() {
-    showModal('Agregar Usuario', `
+    showModal('Nuevo Usuario', `
         <form id="addUserForm" onsubmit="saveUser(event)">
             <div class="form-group">
-                <label>Usuario *</label>
-                <input type="text" name="username" required>
+                <label>Nombre de Usuario *</label>
+                <input type="text" name="username" placeholder="Ej: cajero2" required autocomplete="off">
             </div>
             <div class="form-group">
                 <label>Contraseña *</label>
-                <input type="password" name="password" required>
+                <input type="password" name="password" placeholder="Contraseña de acceso" required autocomplete="new-password">
             </div>
             <div class="form-group">
                 <label>Nombre Completo *</label>
-                <input type="text" name="full_name" required>
+                <input type="text" name="full_name" placeholder="Ej: Juan Pérez" required>
             </div>
             <div class="form-group">
                 <label>Rol *</label>
                 <select name="role" required>
                     <option value="cashier">Cajero</option>
-                    <option value="supervisor">Supervisor</option>
                     <option value="admin">Administrador</option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary" style="width:100%">Guardar</button>
+            <div class="form-group">
+                <label>PIN de desbloqueo rápido (opcional)</label>
+                <input type="text" name="pin" placeholder="Ej: 1234" maxlength="6" pattern="[0-9]*" inputmode="numeric">
+            </div>
+            <div style="margin-top:20px;display:flex;gap:10px">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()" style="flex:1">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex:1">Guardar Usuario</button>
+            </div>
         </form>
     `);
 }
@@ -9371,14 +9526,109 @@ async function saveUser(e) {
             username: formData.get('username'),
             password: formData.get('password'),
             full_name: formData.get('full_name'),
-            role: formData.get('role')
+            role: formData.get('role'),
+            pin: formData.get('pin') || ''
         });
-        showToast('Usuario guardado', 'success');
+        showToast('Usuario creado exitosamente', 'success');
         closeModal();
-        loadUsersSettings();
+        loadUsersSettings('users');
     } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+        showToast('Error al crear usuario: ' + error.message, 'error');
     }
+}
+
+function editUser(userId) {
+    const user = cachedSettingsUsers.find(u => Number(u.id) === Number(userId));
+    if (!user) {
+        showToast('Usuario no encontrado', 'error');
+        return;
+    }
+
+    showModal(`Editar Usuario: ${escapeHtml(user.username)}`, `
+        <form id="editUserForm" onsubmit="updateUser(event, ${user.id})">
+            <div class="form-group">
+                <label>Nombre de Usuario</label>
+                <input type="text" value="${escapeHtml(user.username)}" disabled style="background:#f3f4f6;color:#6b7280;cursor:not-allowed">
+                <small style="color:var(--text-light);font-size:11px">El nombre de usuario no se puede cambiar.</small>
+            </div>
+            <div class="form-group">
+                <label>Nombre Completo *</label>
+                <input type="text" name="full_name" value="${escapeHtml(user.full_name || '')}" required>
+            </div>
+            <div class="form-group">
+                <label>Rol *</label>
+                <select name="role" required>
+                    <option value="cashier" ${user.role === 'cashier' ? 'selected' : ''}>Cajero</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrador</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>PIN de desbloqueo rápido</label>
+                <input type="text" name="pin" value="${escapeHtml(user.pin || '')}" placeholder="Opcional" maxlength="6" pattern="[0-9]*" inputmode="numeric">
+            </div>
+            <div class="form-group" style="background:#f9fafb;padding:12px;border-radius:8px;border:1px solid var(--border-color)">
+                <label style="font-weight:700;color:var(--text-color)">🔑 Cambiar Contraseña</label>
+                <input type="password" name="password" placeholder="Dejar en blanco para conservar la actual" autocomplete="new-password">
+                <small style="color:var(--text-light);font-size:11px">Ingresa un nuevo texto solo si deseas modificar su contraseña.</small>
+            </div>
+            <div class="form-group">
+                <label>Estado de la cuenta</label>
+                <select name="active">
+                    <option value="1" ${user.active ? 'selected' : ''}>Activa</option>
+                    <option value="0" ${!user.active ? 'selected' : ''}>Inactiva / Bloqueada</option>
+                </select>
+            </div>
+            <div style="margin-top:20px;display:flex;gap:10px">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()" style="flex:1">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex:1">Actualizar</button>
+            </div>
+        </form>
+    `);
+}
+
+async function updateUser(e, userId) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    
+    const payload = {
+        full_name: formData.get('full_name'),
+        role: formData.get('role'),
+        pin: formData.get('pin') || '',
+        active: parseInt(formData.get('active'), 10)
+    };
+    
+    const newPassword = formData.get('password');
+    if (newPassword && newPassword.trim().length > 0) {
+        payload.password = newPassword.trim();
+    }
+    
+    try {
+        await apiCall(`/settings/users/${userId}`, 'PUT', payload);
+        showToast('Usuario actualizado exitosamente', 'success');
+        closeModal();
+        loadUsersSettings('users');
+    } catch (error) {
+        showToast('Error al actualizar usuario: ' + error.message, 'error');
+    }
+}
+
+function confirmDeleteUser(userId, username) {
+    showConfirmDialog({
+        title: 'Desactivar Usuario',
+        message: `¿Estás seguro de desactivar la cuenta del usuario "${username}"? No podrá iniciar sesión.`,
+        confirmText: 'Desactivar',
+        danger: true,
+        onConfirm: async () => {
+            try {
+                await apiCall(`/settings/users/${userId}`, 'DELETE');
+                showToast('Usuario desactivado', 'success');
+                loadUsersSettings('users');
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+    });
 }
 
 function showAddTerminalModal() {

@@ -17,7 +17,7 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 2000
 EXPECTED_HEADERS = ['Código de barras', 'Nombre', 'Cantidad']
 LEGACY_HEADERS = ['Código de barras', 'Cantidad']
-ALLOWED_ROLES = ('admin', 'supervisor')
+ALLOWED_ROLES = ('admin',)
 
 
 def _role():

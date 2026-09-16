@@ -19,9 +19,9 @@ def get_settings():
         categories = db.fetch_all('SELECT * FROM categories ORDER BY sort_order, name')
         
         users = db.fetch_all('''
-            SELECT id, username, full_name, role, active 
+            SELECT id, username, full_name, role, pin, active 
             FROM users 
-            WHERE active = 1
+            ORDER BY id ASC
         ''')
         
         terminals = db.fetch_all('SELECT * FROM terminals')
@@ -40,6 +40,69 @@ def get_settings():
             'products': [dict(p) for p in products]
         }), 200
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/permissions', methods=['GET'])
+@jwt_required()
+@require_permission('settings', 'view')
+def get_permissions():
+    try:
+        db = Database(get_db_path())
+        roles = ['cashier', 'admin']
+        result = {}
+        for r in roles:
+            result[r] = db.get_permissions_by_role(r)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/permissions/<role>', methods=['PUT'])
+@jwt_required()
+@require_permission('users', 'edit')
+def update_role_permissions(role):
+    try:
+        if role not in ['cashier', 'admin']:
+            return jsonify({'error': 'Rol no válido'}), 400
+        
+        if role == 'admin':
+            return jsonify({'error': 'Los permisos de administrador no se pueden modificar'}), 400
+
+        data = request.get_json()
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Formato inválido de permisos'}), 400
+
+        db = Database(get_db_path())
+        
+        # data esperada: { "sales": {"can_view": 1, "can_create": 1, "can_edit": 0, "can_delete": 0}, ... }
+        valid_modules = ['sales', 'products', 'cash_register', 'reports', 'settings', 'users']
+        
+        with db.write():
+            for module, perms in data.items():
+                if module not in valid_modules or not isinstance(perms, dict):
+                    continue
+                can_view = 1 if perms.get('can_view') else 0
+                can_create = 1 if perms.get('can_create') else 0
+                can_edit = 1 if perms.get('can_edit') else 0
+                can_delete = 1 if perms.get('can_delete') else 0
+
+                existing = db.fetch_one('SELECT id FROM permissions WHERE role = ? AND module = ?', (role, module))
+                if existing:
+                    db.execute('''
+                        UPDATE permissions
+                        SET can_view = ?, can_create = ?, can_edit = ?, can_delete = ?
+                        WHERE id = ?
+                    ''', (can_view, can_create, can_edit, can_delete, existing['id']))
+                else:
+                    db.execute('''
+                        INSERT INTO permissions (role, module, can_view, can_create, can_edit, can_delete)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (role, module, can_view, can_create, can_edit, can_delete))
+
+        return jsonify({
+            'message': f'Permisos actualizados para {role}',
+            'permissions': db.get_permissions_by_role(role)
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -173,8 +236,8 @@ def create_user():
         if not all([username, password, full_name]):
             return jsonify({'error': 'Todos los campos son requeridos'}), 400
         
-        if role not in ['admin', 'supervisor', 'cashier']:
-            return jsonify({'error': 'Rol no válido'}), 400
+        if role not in ['admin', 'cashier']:
+            return jsonify({'error': 'Rol no válido. Solo se permite admin o cashier'}), 400
         
         db = Database(get_db_path())
         
@@ -210,6 +273,9 @@ def update_user(user_id):
         pin = data.get('pin')
         active = data.get('active')
         password = data.get('password')
+        
+        if role is not None and role not in ['admin', 'cashier']:
+            return jsonify({'error': 'Rol no válido. Solo se permite admin o cashier'}), 400
         
         db = Database(get_db_path())
         
