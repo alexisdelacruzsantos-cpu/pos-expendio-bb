@@ -125,6 +125,17 @@ function setupFullscreenOnFirstInteraction() {
     document.addEventListener('keydown', markGesture, { passive: true });
     document.addEventListener('click', markGesture, { passive: true });
     document.addEventListener('touchstart', markGesture, { passive: true });
+    // El navegador exige un gesto para entrar a pantalla completa: se intenta al
+    // cargar y con reintentos. Si no se permite todavía, el primer teclado/clic entra.
+    const attemptOnLoad = () => {
+        if (!currentUser || isFullscreenActive()) return;
+        requestFullscreenNow();
+    };
+    window.addEventListener('load', () => {
+        attemptOnLoad();
+        setTimeout(attemptOnLoad, 300);
+        setTimeout(attemptOnLoad, 1000);
+    });
 }
 
 function setupEscapeBlocker() {
@@ -153,19 +164,14 @@ function setupFullscreenGuard() {
                                   document.getElementById('adjustmentsSearchOverlay')?.style.display === 'flex';
     document.addEventListener('fullscreenchange', () => {
         if (!isFullscreenActive() && userGestureDetected && currentUser) {
-            const modalOpen = document.getElementById('paymentOverlay')?.style.display === 'flex' ||
-                               document.getElementById('modalOverlay')?.style.display === 'flex' ||
-                               anySearchOpen();
-            if (!modalOpen) {
-                wantsFullscreen = true;
-                requestFullscreenNow();
-                setTimeout(() => {
-                    if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
-                }, 80);
-                setTimeout(() => {
-                    if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
-                }, 250);
-            }
+            wantsFullscreen = true;
+            requestFullscreenNow();
+            setTimeout(() => {
+                if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
+            }, 80);
+            setTimeout(() => {
+                if (!isFullscreenActive() && userGestureDetected && currentUser) requestFullscreenNow();
+            }, 250);
         }
     });
     window.addEventListener('blur', () => {

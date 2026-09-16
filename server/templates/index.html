@@ -138,6 +138,65 @@
     </div>
 
     <script>
+        // ===== Fullscreen bloqueado desde el login =====
+        // El navegador exige un gesto del usuario para entrar a pantalla completa,
+        // por eso se intenta al cargar y se reintenta en el primer teclado/clic.
+        // ESC no la quita: se previene y, si el navegador (Firefox) igual sale, se reentra.
+        (function () {
+            function isFs() {
+                return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+            }
+
+            function requestFs() {
+                if (isFs()) return;
+                var el = document.documentElement;
+                try {
+                    if (el.requestFullscreen) {
+                        var r = el.requestFullscreen();
+                        if (r && typeof r.catch === 'function') r.catch(function () {});
+                    } else if (el.webkitRequestFullscreen) {
+                        el.webkitRequestFullscreen();
+                    } else if (el.msRequestFullscreen) {
+                        el.msRequestFullscreen();
+                    }
+                } catch (_) {}
+            }
+
+            function tryEnter() {
+                if (!isFs()) requestFs();
+            }
+
+            window.addEventListener('load', function () {
+                tryEnter();
+                setTimeout(function () { if (!isFs()) tryEnter(); }, 300);
+                setTimeout(function () { if (!isFs()) tryEnter(); }, 1000);
+            });
+
+            ['keydown', 'click', 'touchstart', 'pointerdown'].forEach(function (ev) {
+                document.addEventListener(ev, function () {
+                    if (!isFs()) tryEnter();
+                }, { capture: true, passive: true });
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                }
+            }, { capture: true });
+
+            function reenter() {
+                if (isFs()) return;
+                requestFs();
+                setTimeout(function () { if (!isFs()) requestFs(); }, 80);
+                setTimeout(function () { if (!isFs()) requestFs(); }, 250);
+            }
+            document.addEventListener('fullscreenchange', reenter);
+            document.addEventListener('webkitfullscreenchange', reenter);
+            document.addEventListener('MSFullscreenChange', reenter);
+        })();
+
         window.addEventListener('load', () => {
             const userInput = document.getElementById('username');
             if (userInput && document.activeElement !== userInput) {
