@@ -134,11 +134,13 @@ function setupEscapeBlocker() {
 }
 
 function setupFullscreenGuard() {
+    const anySearchOpen = () => document.getElementById('posSearchOverlay')?.style.display === 'flex' ||
+                                  document.getElementById('adjustmentsSearchOverlay')?.style.display === 'flex';
     document.addEventListener('fullscreenchange', () => {
         if (!isFullscreenActive() && userGestureDetected && currentUser) {
             const modalOpen = document.getElementById('paymentOverlay')?.style.display === 'flex' ||
                                document.getElementById('modalOverlay')?.style.display === 'flex' ||
-                               document.getElementById('posSearchOverlay')?.style.display === 'flex';
+                               anySearchOpen();
             if (!modalOpen) wantsFullscreen = true;
         }
     });
@@ -146,7 +148,7 @@ function setupFullscreenGuard() {
         if (!userGestureDetected) return;
         const modalOpen = document.getElementById('paymentOverlay')?.style.display === 'flex' ||
                           document.getElementById('modalOverlay')?.style.display === 'flex' ||
-                          document.getElementById('posSearchOverlay')?.style.display === 'flex';
+                          anySearchOpen();
         if (!modalOpen) wantsFullscreen = true;
     });
 }
@@ -170,9 +172,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupGlobalKeys() {
     document.addEventListener('keydown', (e) => {
         const paymentOpen = document.getElementById('paymentOverlay')?.style.display === 'flex';
-        const searchOpen = document.getElementById('posSearchOverlay')?.style.display === 'flex';
+        const searchOpen = document.getElementById('posSearchOverlay')?.style.display === 'flex' ||
+                           document.getElementById('adjustmentsSearchOverlay')?.style.display === 'flex';
         const activeEl = document.activeElement;
-        const isSearchInput = activeEl?.id === 'posSearchInput';
+        const isSearchInput = activeEl?.id === 'posSearchInput' || activeEl?.id === 'adjustmentsSearchInput';
         const isPayInput = activeEl?.id === 'payCashAmount' || activeEl?.id === 'payCardAmount';
         const isAnyInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable);
         const modalOverlay = document.getElementById('modalOverlay');
@@ -232,11 +235,6 @@ function setupGlobalKeys() {
                 closeSearchResults();
                 return;
             }
-            const invPanel = document.getElementById('invSidePanel');
-            if (invPanel && invPanel.classList.contains('open')) {
-                closeInventoryDetail();
-                return;
-            }
             const lotSel = document.getElementById('lotSelectorOverlay');
             if (lotSel) {
                 lotSel.remove();
@@ -261,7 +259,7 @@ function setupGlobalKeys() {
             }
             if (isSearchInput) {
                 closeSearchResults();
-                document.getElementById('posSearchInput').blur();
+                activeEl.blur();
                 return;
             }
         }
@@ -436,7 +434,6 @@ function canAccessSection(section) {
     switch (section) {
         case 'sales': return view('sales');
         case 'products': return view('products');
-        case 'inventory': return edit('products');
         case 'adjustments': return edit('products');
         case 'lots': return edit('products');
         case 'promotions': return edit('products');
@@ -1209,11 +1206,6 @@ function setupSectionShortcuts() {
             if (!document.getElementById('salesSection').classList.contains('active')) {
                 navigateTo('sales');
             }
-        } else if (e.key === 'F4') {
-            e.preventDefault();
-            if (!document.getElementById('inventorySection').classList.contains('active')) {
-                navigateTo('inventory');
-            }
         }
     });
 }
@@ -1478,7 +1470,6 @@ async function showSection(section) {
         sales: 'Ventas',
         products: 'Productos',
         lots: 'Lotes',
-inventory: 'Agregar inventario',
         'inventory-history': 'Historial de Movimientos',
         orders: 'Pedidos',
         reports: 'Reportes',
@@ -1497,7 +1488,6 @@ inventory: 'Agregar inventario',
             case 'products': await loadProductsTable(); break;
             case 'lots': await loadLots(); break;
             case 'existencias': await loadLotsCut(); break;
-            case 'inventory': await loadInventory(); focusInventorySearch(); break;
             case 'inventory-history': await loadInventoryMovementsHistory(); break;
             case 'adjustments': focusAdjustmentsSearch(); break;
             case 'orders': await loadOrdersSection(); break;
@@ -1524,7 +1514,7 @@ function focusPosSearch() {
 
 function focusAdjustmentsSearch() {
     setTimeout(() => {
-        const search = document.getElementById('adjustmentsSearch');
+        const search = document.getElementById('adjustmentsSearchInput');
         if (search && document.activeElement !== search) {
             search.focus();
             try { search.setSelectionRange(search.value.length, search.value.length); } catch (_) {}
@@ -1550,9 +1540,9 @@ function setupAdjustmentsFocusGuard() {
         const adjSection = document.getElementById('adjustmentsSection');
         if (!adjSection || !adjSection.classList.contains('active')) return;
         const target = e.target;
-        const search = document.getElementById('adjustmentsSearch');
+        const search = document.getElementById('adjustmentsSearchInput');
         if (!search) return;
-        if (target.closest('input, textarea, select, button, a, [contenteditable], .modal-overlay, .adjustments-scan-full')) return;
+        if (target.closest('input, textarea, select, button, a, [contenteditable], .modal-overlay, .pos-search-overlay, .adjustments-form-panel')) return;
         if (target === search) return;
         focusAdjustmentsSearch();
     });
@@ -1739,6 +1729,24 @@ let posActiveCategory = null;
 let cartSelectedIndex = 0;
 let posSearchFilters = { inStockOnly: true, sort: 'name_asc' };
 
+function getSearchContext() {
+    const adj = document.getElementById('adjustmentsSection');
+    return (adj && adj.classList.contains('active')) ? 'adjustments' : 'sales';
+}
+
+function searchContextEls() {
+    const isAdj = getSearchContext() === 'adjustments';
+    return {
+        isAdj,
+        input: document.getElementById(isAdj ? 'adjustmentsSearchInput' : 'posSearchInput'),
+        overlay: document.getElementById(isAdj ? 'adjustmentsSearchOverlay' : 'posSearchOverlay'),
+        list: document.getElementById(isAdj ? 'adjustmentsSearchResultsList' : 'posSearchResultsList'),
+        inStock: document.getElementById(isAdj ? 'adjustmentsFilterInStock' : 'posFilterInStock'),
+        sort: document.getElementById(isAdj ? 'adjustmentsFilterSort' : 'posFilterSort'),
+        onSel: isAdj ? 'openAdjustmentProduct' : 'selectAndAdd'
+    };
+}
+
 // Render virtualizado del overlay de búsqueda: solo se pintan unas pocas
 // cards alrededor de la selección (el array filtrado completo sigue operativo).
 const POS_RESULT_WINDOW = 60;
@@ -1774,11 +1782,13 @@ function getProductSearchKey(p) {
 }
 
 function getFilteredProducts() {
-    const query = (document.getElementById('posSearchInput')?.value || '').toLowerCase();
-    if (!query && !posActiveCategory && !posSearchFilters.inStockOnly && posSearchFilters.sort === 'name_asc') return [...products];
+    const ctx = getSearchContext();
+    const query = (searchContextEls().input?.value || '').toLowerCase();
+    const useCategory = ctx === 'sales' && posActiveCategory;
+    if (!query && !useCategory && !posSearchFilters.inStockOnly && posSearchFilters.sort === 'name_asc') return [...products];
     const filtered = products.filter(p => {
         const matchSearch = !query || getProductSearchKey(p).includes(query);
-        const matchCat = !posActiveCategory || p.category_id === posActiveCategory;
+        const matchCat = !useCategory || p.category_id === posActiveCategory;
         const matchStock = !posSearchFilters.inStockOnly || getAvailableStock(p.id) > 0;
         return matchSearch && matchCat && matchStock;
     });
@@ -1817,8 +1827,9 @@ function getFilteredProducts() {
 }
 
 function onPosFilterChange() {
-    const inStock = document.getElementById('posFilterInStock');
-    const sort = document.getElementById('posFilterSort');
+    const els = searchContextEls();
+    const inStock = els.inStock;
+    const sort = els.sort;
     if (inStock) {
         inStock.checked = true;
         posSearchFilters.inStockOnly = true;
@@ -1861,12 +1872,13 @@ function onPosSearchChange() {
 }
 
 function updateSearchCounter() {
-    const search = document.getElementById('posSearchInput');
+    const els = searchContextEls();
+    const search = els.input;
     if (!search) return;
     const query = search.value.trim();
     if (!query) return;
     const filtered = getFilteredProducts();
-    const overlay = document.getElementById('posSearchOverlay');
+    const overlay = els.overlay;
     if (overlay) {
         const header = overlay.querySelector('.pos-search-overlay-header strong');
         if (header) {
@@ -1876,14 +1888,17 @@ function updateSearchCounter() {
 }
 
 function showSearchResults() {
-    const overlay = document.getElementById('posSearchOverlay');
-    const search = document.getElementById('posSearchInput');
+    const els = searchContextEls();
+    const overlay = els.overlay;
+    const search = els.input;
     if (!overlay || !search) {
-        console.warn('posSearchOverlay or posSearchInput not found');
+        console.warn('overlay or search input not found');
         return;
     }
     const query = search.value.trim();
     if (query) {
+        const rect = search.getBoundingClientRect();
+        overlay.style.top = (rect.bottom + 6) + 'px';
         overlay.classList.add('visible');
         overlay.style.display = 'flex';
     } else {
@@ -1893,8 +1908,9 @@ function showSearchResults() {
 }
 
 function closeSearchResults() {
-    const overlay = document.getElementById('posSearchOverlay');
-    const search = document.getElementById('posSearchInput');
+    const els = searchContextEls();
+    const overlay = els.overlay;
+    const search = els.input;
     if (overlay) {
         overlay.classList.remove('visible');
         overlay.style.display = 'none';
@@ -2024,13 +2040,15 @@ function confirmPriceAdd() {
 }
 
 function handlePosKey(e) {
-    const search = document.getElementById('posSearchInput');
+    const ctx = getSearchContext();
+    const search = searchContextEls().input;
     const query = search?.value?.trim() || '';
 
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         cancelPosSearchRender();
         const filtered = getFilteredProducts();
+        if (filtered.length === 0) return;
         posSelectedIndex = Math.min(posSelectedIndex + 1, filtered.length - 1);
         renderPosProductsTable();
         scrollToSelected();
@@ -2038,6 +2056,7 @@ function handlePosKey(e) {
         e.preventDefault();
         cancelPosSearchRender();
         const filtered = getFilteredProducts();
+        if (filtered.length === 0) return;
         posSelectedIndex = Math.max(posSelectedIndex - 1, 0);
         renderPosProductsTable();
         scrollToSelected();
@@ -2049,10 +2068,18 @@ function handlePosKey(e) {
 
         if (looksLikeBarcode(query)) {
             apiCall(`/products/barcode/${encodeURIComponent(query)}`).then(product => {
-                addToCart(product.id);
+                if (ctx === 'adjustments') {
+                    openAdjustmentProduct(product.id);
+                } else {
+                    addToCart(product.id);
+                }
                 search.value = '';
                 onPosSearchChange();
-                search.focus();
+                if (ctx === 'adjustments') {
+                    focusAdjustmentAmount();
+                } else {
+                    search.focus();
+                }
             }).catch(() => {
                 search.value = '';
                 showToast('Código no encontrado', 'error');
@@ -2062,21 +2089,33 @@ function handlePosKey(e) {
         } else {
             const filtered = getFilteredProducts();
             if (filtered.length > 0 && filtered[posSelectedIndex]) {
-                addToCart(filtered[posSelectedIndex].id);
+                if (ctx === 'adjustments') {
+                    openAdjustmentProduct(filtered[posSelectedIndex].id);
+                } else {
+                    addToCart(filtered[posSelectedIndex].id);
+                    const modalOpen = document.getElementById('modalOverlay')?.classList.contains('active');
+                    if (modalOpen) closeModal();
+                    showToast('✓ Producto agregado', 'success');
+                }
                 search.value = '';
                 posSelectedIndex = 0;
                 onPosSearchChange();
-                search.focus();
-                const modalOpen = document.getElementById('modalOverlay')?.classList.contains('active');
-                if (modalOpen) closeModal();
-                showToast('✓ Producto agregado', 'success');
+                if (ctx === 'adjustments') {
+                    focusAdjustmentAmount();
+                } else {
+                    search.focus();
+                }
             } else {
-                openProductSearchModal(query);
+                showToast('No se encontró el producto. Escribe el nombre o código correcto', 'warning');
             }
         }
     } else if (e.key === 'F10') {
         e.preventDefault();
-        openProductSearchModal(query);
+        showToast('Solo escribe el producto en el buscador', 'info');
+    } else if (ctx === 'adjustments') {
+        // En Ajustes solo se navega la búsqueda con Enter/flechas; las teclas
+        // de carrito (Delete, <-/->, +, -) no aplican.
+        return;
     } else if (e.key === 'Delete') {
         if (cart.length === 0) return;
         if (e.ctrlKey || e.metaKey) {
@@ -2135,123 +2174,59 @@ function looksLikeBarcode(text) {
     return true;
 }
 
-function openProductSearchModal(prefillQuery) {
-    const query = prefillQuery !== undefined ? prefillQuery : (document.getElementById('posSearchInput')?.value || '');
-
-    showModal('Buscar Producto', `
-        <div class="form-group">
-            <input type="text" id="modalProductSearch" class="form-input" placeholder="Escribe el nombre o código..." value="${escapeHtml(query)}" oninput="filterModalResults()" autofocus>
-        </div>
-        <div id="modalProductResults" class="modal-product-results">
-            ${renderModalProductResults(query)}
-        </div>
-        <div style="text-align:center;color:#6b7280;font-size:12px;margin-top:8px">↑↓ navegar · Enter seleccionar · Esc cerrar</div>
-    `);
-
-    setTimeout(() => {
-        const inp = document.getElementById('modalProductSearch');
-        if (inp) {
-            inp.focus();
-            inp.setSelectionRange(inp.value.length, inp.value.length);
-            inp.addEventListener('keydown', handleModalSearchKey);
-        }
-    }, 50);
-}
-
-let modalSelectedIndex = 0;
-
-function renderModalProductResults(query) {
-    const q = (query || '').toLowerCase();
-    let results;
-    if (!q) {
-        results = [...allProducts].slice(0, 30);
-    } else {
-        results = allProducts.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            (p.barcode && p.barcode.toLowerCase().includes(q))
-        ).slice(0, 30);
-    }
-
-    if (results.length === 0) {
-        return '<p style="text-align:center;padding:30px;color:#6b7280">Sin resultados</p>';
-    }
-
-    return results.map((p, i) => `
-        <div class="modal-product-row ${i === 0 ? 'selected' : ''}" onclick="selectModalProduct(${p.id})" data-index="${i}">
-            <div class="modal-product-code">${escapeHtml(p.barcode || '-')}</div>
-            <div class="modal-product-name">${escapeHtml(p.name)}</div>
-            <div class="modal-product-price">$${parseFloat(p.price).toFixed(2)}</div>
-        </div>
-    `).join('');
-}
-
-function filterModalResults() {
-    const inp = document.getElementById('modalProductSearch');
-    if (!inp) return;
-    modalSelectedIndex = 0;
-    const container = document.getElementById('modalProductResults');
-    if (container) container.innerHTML = renderModalProductResults(inp.value);
-}
-
-function handleModalSearchKey(e) {
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const rows = document.querySelectorAll('.modal-product-row');
-        if (rows.length === 0) return;
-        rows[modalSelectedIndex]?.classList.remove('selected');
-        modalSelectedIndex = Math.min(modalSelectedIndex + 1, rows.length - 1);
-        rows[modalSelectedIndex]?.classList.add('selected');
-        rows[modalSelectedIndex]?.scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const rows = document.querySelectorAll('.modal-product-row');
-        if (rows.length === 0) return;
-        rows[modalSelectedIndex]?.classList.remove('selected');
-        modalSelectedIndex = Math.max(modalSelectedIndex - 1, 0);
-        rows[modalSelectedIndex]?.classList.add('selected');
-        rows[modalSelectedIndex]?.scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const rows = document.querySelectorAll('.modal-product-row');
-        const selected = rows[modalSelectedIndex];
-        if (selected) {
-            const productId = parseInt(selected.getAttribute('onclick').match(/\d+/)[0]);
-            selectModalProduct(productId);
-        }
-    } else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeModal();
-        document.getElementById('posSearchInput')?.focus();
-    }
-}
-
-function selectModalProduct(productId) {
-    addToCart(productId);
-    closeModal();
-    const search = document.getElementById('posSearchInput');
-    if (search) {
-        search.value = '';
-        onPosSearchChange();
-        search.focus();
-    }
-    showToast('✓ Producto agregado', 'success');
-}
-
 function scrollToSelected() {
-    const cards = document.querySelectorAll('#posSearchResultsList .pos-search-card');
+    const list = searchContextEls().list;
+    if (!list) return;
+    const rows = list.querySelectorAll('.product-result-row');
     const local = posSelectedIndex - posRenderStart;
-    if (cards[local]) {
-        cards[local].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (rows[local]) {
+        rows[local].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
+}
+
+function renderProductSearchTable(container, opts = {}) {
+    if (!container) return;
+    const { items, base = 0, selected = null, onSel = 'onSelectProduct', stockOf = null, emptyMsg = 'Sin resultados' } = opts;
+    if (!items || !items.length) {
+        container.innerHTML = `<div class="product-result-empty">${emptyMsg}</div>`;
+        return;
+    }
+    container.innerHTML = `<table class="product-result-table">
+        <thead><tr>
+            <th>C\u00f3digo</th>
+            <th>Producto</th>
+            <th>Categor\u00eda</th>
+            <th>Existencias</th>
+            <th>Precio</th>
+        </tr></thead>
+        <tbody>${buildProductResultRowsHtml({ items, base, selected, onSel, stockOf })}</tbody>
+    </table>`;
+}
+
+function buildProductResultRowsHtml({ items, base = 0, selected = null, onSel = 'onSelectProduct', stockOf = null } = {}) {
+    return items.map((p, i) => {
+        const idx = base + i;
+        const stock = stockOf ? stockOf(p) : Number(p.effective_stock ?? p.stock ?? 0);
+        const stockClass = stock <= 0 ? 'stock-num zero' : 'stock-num ok';
+        const stockStr = Number.isInteger(stock) ? stock : parseFloat(stock.toFixed(2));
+        return `
+        <tr class="product-result-row ${idx === selected ? 'selected' : ''}" onclick="${onSel}(${p.id})" data-index="${idx}">
+            <td class="result-code">${escapeHtml(p.barcode || '-')}</td>
+            <td class="result-name">${escapeHtml(p.name)}</td>
+            <td class="result-cat">${escapeHtml(p.category_name || 'Sin categor\u00eda')}</td>
+            <td class="result-stock"><span class="${stockClass}">${stockStr}</span></td>
+            <td class="result-price">$${parseFloat(p.price).toFixed(2)}</td>
+        </tr>`;
+    }).join('');
 }
 
 function renderPosProductsTable() {
-    const list = document.getElementById('posSearchResultsList');
+    const list = searchContextEls().list;
     if (!list) return;
     const filtered = getFilteredProducts();
 
     if (filtered.length === 0) {
-        list.innerHTML = '<div class="pos-search-empty">Sin resultados</div>';
+        list.innerHTML = '<div class="product-result-empty">Sin resultados</div>';
         posRenderStart = 0;
         return;
     }
@@ -2266,22 +2241,13 @@ function renderPosProductsTable() {
     const end = Math.min(total, start + POS_RESULT_WINDOW);
     const visible = filtered.slice(start, end);
 
-    list.innerHTML = visible.map((p, i) => {
-        const idx = start + i;
-        const stock = getAvailableStock(p.id);
-        const stockClass = stock <= 0 ? 'badge-danger' : 'badge-success';
-        const stockLabel = stock <= 0 ? '🔴 0' : `🟢 ${stock}`;
-        return `
-        <div class="pos-search-card ${idx === posSelectedIndex ? 'selected' : ''}" onclick="selectAndAdd(${p.id})" data-index="${idx}">
-            <div class="pos-search-card-code">${escapeHtml(p.barcode || '-')}</div>
-            <div class="pos-search-card-info">
-                <div class="pos-search-card-name">${escapeHtml(p.name)}</div>
-                <div class="pos-search-card-cat">${escapeHtml(p.category_name || 'Sin categoría')}</div>
-            </div>
-            <div class="pos-search-card-stock"><span class="badge ${stockClass}">${stockLabel}</span></div>
-            <div class="pos-search-card-price">$${parseFloat(p.price).toFixed(2)}</div>
-        </div>
-    `;}).join('');
+    renderProductSearchTable(list, {
+        items: visible,
+        base: start,
+        selected: posSelectedIndex,
+        onSel: searchContextEls().onSel,
+        stockOf: p => getAvailableStock(p.id)
+    });
 }
 
 function selectAndAdd(productId) {
@@ -2302,7 +2268,6 @@ let productsTableData = [];
 let productsCategoryFilter = '';
 let productsSort = { key: 'name', dir: 'asc' };
 let productsStockFilter = 'all';
-let productsViewMode = localStorage.getItem('pos_products_view') || 'cards';
 
 const PRODUCTS_SEARCH_DEBOUNCE_MS = 60;
 let productsSearchTimer = null;
@@ -2356,6 +2321,15 @@ function scheduleProductsSearchRender() {
     }, PRODUCTS_SEARCH_DEBOUNCE_MS);
 }
 
+function scheduleProductsSearchRender() {
+    if (productsSearchTimer) clearTimeout(productsSearchTimer);
+    productsSearchTimer = setTimeout(() => {
+        productsSearchTimer = null;
+        renderVisibleProducts();
+        renderProductSearchResults();
+    }, PRODUCTS_SEARCH_DEBOUNCE_MS);
+}
+
 function cancelProductsSearchRender() {
     if (productsSearchTimer) {
         clearTimeout(productsSearchTimer);
@@ -2365,24 +2339,35 @@ function cancelProductsSearchRender() {
 
 function renderVisibleProducts() {
     cancelProductsSearchRender();
-    if (productsViewMode === 'table') {
-        renderProductsTable();
-    } else {
-        renderProductsCards();
-    }
+    renderProductsTable();
     updateSortIndicators();
 }
 
-function switchProductsView(mode) {
-    productsViewMode = mode;
-    localStorage.setItem('pos_products_view', mode);
-    document.getElementById('viewToggleCards')?.classList.toggle('active', mode === 'cards');
-    document.getElementById('viewToggleTable')?.classList.toggle('active', mode === 'table');
-    const cardsEl = document.getElementById('productsSubviewCards');
-    const tableEl = document.getElementById('productsSubviewTable');
-    if (cardsEl) cardsEl.style.display = mode === 'cards' ? 'block' : 'none';
-    if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
-    renderVisibleProducts();
+function renderProductSearchResults() {
+    const container = document.getElementById('productSearchResults');
+    const input = document.getElementById('productSearch');
+    if (!container) return;
+    const q = (input?.value || '').trim();
+    if (!q) {
+        container.style.display = 'none';
+        return;
+    }
+    const rows = getProductSearchRows();
+    if (!rows.length) {
+        container.style.display = 'none';
+        return;
+    }
+    renderProductSearchTable(container, {
+        items: rows.slice(0, 30),
+        onSel: 'openProductFromSearch'
+    });
+    container.style.display = 'block';
+}
+
+function openProductFromSearch(productId) {
+    const container = document.getElementById('productSearchResults');
+    if (container) container.style.display = 'none';
+    editProduct(productId);
 }
 
 function setProductsStockFilter(filter) {
@@ -2396,83 +2381,6 @@ function setProductsStockFilter(filter) {
 const PRODUCTS_CHUNK = 60;
 let productsRenderId = 0;
 
-function renderProductsCards() {
-    const grid = document.getElementById('productsCardGrid');
-    if (!grid) return;
-    const rows = getProductSearchRows();
-
-    const count = document.getElementById('productsCount');
-    if (count) count.textContent = `${rows.length} ${rows.length === 1 ? 'producto' : 'productos'}`;
-
-    if (!rows.length) {
-        grid.innerHTML = `<div class="inv-help"><div class="inv-help-icon"><svg class="icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div><p class="inv-help-text">No se encontraron productos</p></div>`;
-        return;
-    }
-    const id = ++productsRenderId;
-    const small = rows.length <= PRODUCTS_CHUNK;
-    let i = 0;
-    const paint = () => {
-        if (id !== productsRenderId) return;
-        const next = rows.slice(i, i + PRODUCTS_CHUNK);
-        if (i === 0) {
-            grid.innerHTML = next.map(p => renderProductCard(p, small)).join('');
-        } else {
-            grid.insertAdjacentHTML('beforeend', next.map(p => renderProductCard(p, false)).join(''));
-        }
-        i += PRODUCTS_CHUNK;
-        if (i < rows.length) {
-            setTimeout(paint, 0);
-        }
-    };
-    paint();
-}
-
-function renderProductCard(p, reveal) {
-    const stock = Number(p.effective_stock) || 0;
-    const cost = Number(p.cost) || 0;
-    const price = Number(p.price) || 0;
-    const marginClass = p.ganancia >= 0 ? 'pos' : 'neg';
-    const safeName = escapeJs(p.name);
-    const catColor = p.category_color || '#6b7280';
-    const extraClass = reveal ? ' reveal' : '';
-
-    return `
-        <div class="product-card${extraClass}">
-            <div class="product-card-head">
-                <div>
-                    <div class="product-card-name">${escapeHtml(p.name || '')}</div>
-                    ${p.barcode ? `<div class="product-card-barcode">${escapeHtml(p.barcode)}</div>` : ''}
-                </div>
-            </div>
-            <span class="product-card-cat" style="background:${catColor}20;color:${catColor}">${escapeHtml(p.category_name || 'Sin categoría')}</span>
-            <div class="product-card-prices">
-                <span class="product-card-price">$${price.toFixed(2)}</span>
-                ${cost > 0 ? `<span class="product-card-cost">$${cost.toFixed(2)}</span>` : ''}
-                <span class="product-card-margin ${marginClass}">${p.ganancia >= 0 ? '+' : '-'}$${Math.abs(p.ganancia).toFixed(2)}</span>
-            </div>
-            <div class="product-card-stats">
-                <div class="product-card-stat">
-                    <div class="product-card-stat-label">Stock</div>
-                    <div class="product-card-stat-value">${stock.toFixed(0)}</div>
-                </div>
-                <div class="product-card-stat">
-                    <div class="product-card-stat-label">Lotes</div>
-                    <div class="product-card-stat-value">${Number(p.lots_count) || 0}</div>
-                </div>
-            </div>
-            <div class="product-card-actions">
-                <button class="action-btn-icon" title="Ver lotes" onclick="showProductLots(${p.id}, '${safeName}')">
-                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-                    </button>
-                    <button class="action-btn-icon" title="Historial" onclick="showProductHistory(${p.id}, '${safeName}')">
-                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg>
-                    </button>
-                <button class="action-btn" onclick="editProduct(${p.id})">Editar</button>
-                <button class="action-btn delete" onclick="deleteProduct(${p.id})">Eliminar</button>
-            </div>
-        </div>`;
-}
-
 async function loadProductsTable() {
     try {
         await ensureInventoryLots();
@@ -2484,7 +2392,7 @@ async function loadProductsTable() {
             return { ...p, ganancia, margen, _searchKey: ((p.name || '') + '\u0000' + (p.barcode || '') + '\u0000' + (p.category_name || '')).toLowerCase() };
         });
         populateCategoryFilter();
-        switchProductsView(productsViewMode);
+        renderVisibleProducts();
     } catch (error) {
         showToast('Error al cargar productos', 'error');
     }
@@ -2752,18 +2660,7 @@ function goToCategories() {
     showSection('settings').then(() => showSettingsTab('categories'));
 }
 
-/* ===== Sub-vistas Inventario ===== */
-let currentInvSubview = 'cards';
-
 let inventoryData = [];
-let invFilter = 'all';
-let invDetailProductId = null;
-let invSearchRenderTimer = null;
-
-function inventoryRenderDebounce() {
-    const v = document.getElementById('inventorySearch')?.value || '';
-    return looksLikeBarcode(v.trim()) ? 250 : 60;
-}
 
 async function loadReports() {
     defaultSalesRange();
@@ -3178,867 +3075,11 @@ function showReportTab(tab) {
 }
 
 async function loadInventory() {
-    try {
-        const products = await apiCall('/products/inventory');
-        inventoryData = products.map(p => ({
-            ...p,
-            stock: p.effective_stock,
-            lots: []
-        }));
-        try {
-            const lotsData = await apiCall('/lots/');
-            const lotsByProduct = {};
-            lotsData.forEach(l => {
-                if (!lotsByProduct[l.product_id]) lotsByProduct[l.product_id] = [];
-                lotsByProduct[l.product_id].push(l);
-            });
-            inventoryData = inventoryData.map(p => ({
-                ...p,
-                lots: lotsByProduct[p.id] || []
-            }));
-        } catch (e) {
-            console.warn('No se pudieron cargar lotes', e);
-        }
-        renderInventoryView();
-        focusInventorySearch();
-    } catch (error) {
-        showToast('Error al cargar inventario', 'error');
-    }
+    await ensureInventoryLots();
 }
-
-function setInventoryFilter(filter) {
-    invFilter = filter;
-    document.querySelectorAll('#invFilterChips .inv-chip').forEach(b => {
-        b.classList.toggle('active', b.dataset.filter === filter);
-    });
-    renderInventoryView();
-}
-
-function onInventorySearchChange() {
-    const v = document.getElementById('inventorySearch')?.value || '';
-    const clearBtn = document.getElementById('invSearchClear');
-    if (clearBtn) clearBtn.style.display = v ? 'block' : 'none';
-    clearTimeout(invSearchRenderTimer);
-    invSearchRenderTimer = setTimeout(() => renderInventoryView(), inventoryRenderDebounce());
-}
-
-function focusInventorySearch() {
-    const section = document.getElementById('inventorySection');
-    if (section && !section.classList.contains('active')) return;
-    const modalActive = document.getElementById('modalOverlay')?.classList?.contains('active');
-    const sideOpen = document.querySelector('.inv-side-overlay.open');
-    if (modalActive || sideOpen) return;
-    const searchEl = document.getElementById('inventorySearch');
-    if (searchEl && document.activeElement !== searchEl) {
-        setTimeout(() => {
-            if (document.activeElement === searchEl) return;
-            searchEl.focus();
-            try { searchEl.setSelectionRange(searchEl.value.length, searchEl.value.length); } catch {}
-        }, 50);
-    }
-}
-
-function clearInventorySearch() {
-    const inp = document.getElementById('inventorySearch');
-    if (inp) {
-        inp.value = '';
-        inp.focus();
-    }
-    const clearBtn = document.getElementById('invSearchClear');
-    if (clearBtn) clearBtn.style.display = 'none';
-    renderInventoryView();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const inp = document.getElementById('inventorySearch');
-    if (!inp) return;
-    inp.addEventListener('keydown', async (e) => {
-        if (e.key !== 'Enter') return;
-        const v = inp.value.trim();
-        if (!v) return;
-        e.preventDefault();
-        if (!/^\d{4,}$/.test(v)) return;
-        clearTimeout(invSearchRenderTimer);
-        try {
-            const product = await apiCall(`/products/barcode/${encodeURIComponent(v)}`);
-            inp.value = '';
-            const clearBtn = document.getElementById('invSearchClear');
-            if (clearBtn) clearBtn.style.display = 'none';
-            showQuickAddStockModal(product);
-        } catch (err) {
-            let msg = 'Código no encontrado';
-            try { msg = JSON.parse(err.message).error || msg; } catch {}
-            showToast(msg, 'warning');
-            inp.value = '';
-            showConfirmDialog({
-                title: 'Producto no encontrado',
-                message: `El código <strong>${escapeHtml(v)}</strong> no existe en el sistema. ¿Quieres registrarlo como producto nuevo?`,
-                icon: `<svg class="icon confirm-dialog-icon-svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path><line x1="8" y1="11" x2="14" y2="11"></line></svg>`,
-                confirmIcon: `<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>`,
-                confirmText: 'Registrarlo',
-                cancelText: 'Cancelar',
-                onConfirm: () => showAddProductModal(v)
-            });
-        }
-    });
-});
-
-function showQuickAddStockModal(product) {
-    const today = new Date();
-    const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const hasLots = product.has_lots;
-    const currentCost = Number(product.cost) || 0;
-    const currentPrice = Number(product.price) || 0;
-    const currentStock = Math.round(Number(product.stock) || 0);
-
-    const genStock = Math.round(Number(product.product_stock != null ? product.product_stock : product.stock) || 0);
-
-    let lotsHtml = '';
-    if (hasLots) {
-        const sortedLots = (product.lots || []).slice().sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
-        lotsHtml = `
-            <div class="form-section-title">📦 ¿Dónde agregar?</div>
-            <div class="form-group">
-                <select id="quickLotSelect">
-                    <option value="">📦 Stock general (${genStock} u.)</option>
-                    ${sortedLots.map(l => {
-                        const exp = l.expiry_date ? new Date(l.expiry_date).toLocaleDateString('es-MX') : '—';
-                        const qty = Math.round(Number(l.current_quantity) || 0);
-                        return `<option value="${l.id}">${escapeHtml(l.batch_number || 's/lote')} · ${qty} u. · caduca ${exp}</option>`;
-                    }).join('')}
-                    <option value="__new__">➕ Crear lote nuevo</option>
-                </select>
-            </div>
-            <div id="quickNewLotFields" style="display:none">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Fecha de Caducidad</label>
-                        <input type="date" id="quickExpiry" value="${defaultExpiry}">
-                    </div>
-                    <div class="form-group">
-                        <label>Número de Lote (opcional)</label>
-                        <input type="text" id="quickBatch" placeholder="LOTE-${Date.now().toString().slice(-6)}">
-                    </div>
-                </div>
-            </div>
-        `;
-    } else {
-        lotsHtml = `<input type="hidden" id="quickLotSelect" value="">`;
-    }
-
-    showModal('⚡ Agregado Rápido - ' + escapeHtml(product.name), `
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:14px">
-            <div style="font-size:14px;color:#92400e"><strong>Producto:</strong> ${escapeHtml(product.name)}</div>
-            <div style="font-size:14px;color:#92400e"><strong>Código:</strong> ${escapeHtml(product.barcode || '—')}</div>
-            <div style="font-size:16px;color:#b45309;font-weight:700"><strong>Stock actual:</strong> <span id="quickCurrentStock">${currentStock}</span> u.</div>
-        </div>
-        <form id="quickAddForm" onsubmit="submitQuickAddStock(event, ${product.id}, ${hasLots})">
-            <div class="form-group">
-                <label style="font-size:14px">Cantidad a agregar *</label>
-                <input type="number" id="quickQty" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required value="1" style="font-size:20px;text-align:center;font-weight:700">
-            </div>
-            ${lotsHtml}
-            <div class="form-section-title">💲 Actualizar precios (opcional)</div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Costo</label>
-                    <input type="number" name="cost" min="0" step="0.01" value="${currentCost.toFixed(2)}">
-                </div>
-                <div class="form-group">
-                    <label>Precio venta</label>
-                    <input type="number" name="price" min="0" step="0.01" value="${currentPrice.toFixed(2)}">
-                </div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:16px">
-                <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button type="submit" id="quickAddSubmit" class="btn btn-primary" style="flex:1">⚡ Agregar</button>
-            </div>
-        </form>
-    `, {
-        enterNav: { primarySelector: '#quickAddSubmit' }
-    });
-
-    setTimeout(() => {
-        const qtyInp = document.getElementById('quickQty');
-        if (qtyInp) {
-            qtyInp.focus();
-            qtyInp.select();
-        }
-        const lotSelect = document.getElementById('quickLotSelect');
-        if (lotSelect) {
-            const toggleNew = () => {
-                const nf = document.getElementById('quickNewLotFields');
-                if (nf) nf.style.display = lotSelect.value === '__new__' ? 'block' : 'none';
-            };
-            lotSelect.addEventListener('change', toggleNew);
-            toggleNew();
-        }
-    }, 50);
-}
-
-async function submitQuickAddStock(event, productId, hasLots) {
-    event.preventDefault();
-    const form = event.target;
-    const submitBtn = document.getElementById('quickAddSubmit');
-    if (submitBtn && submitBtn.disabled) return;
-
-    const qtyRaw = parseFloat(form.quantity.value);
-    if (!qtyRaw || qtyRaw <= 0) {
-        showToast('Cantidad inválida', 'error');
-        return;
-    }
-    const qty = Math.round(qtyRaw);
-
-    const newCost = form.cost?.value;
-    const newPrice = form.price?.value;
-
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.dataset.origText = submitBtn.textContent;
-        submitBtn.innerHTML = '<span class="spin-inline"></span> Guardando...';
-        submitBtn.style.opacity = '0.6';
-    }
-
-    try {
-        let stockMsg = '';
-        const lotSelect = document.getElementById('quickLotSelect');
-        const rawVal = lotSelect ? lotSelect.value : '';
-        if (hasLots && rawVal) {
-            if (rawVal === '__new__') {
-                const expiry = document.getElementById('quickExpiry')?.value;
-                const batch = document.getElementById('quickBatch')?.value || '';
-                await apiCall('/lots/add-stock', 'POST', {
-                    product_id: productId,
-                    quantity: qty,
-                    expiry_date: expiry,
-                    batch_number: batch
-                });
-                stockMsg = `+${qty} u. (nuevo lote ${batch || ''})`;
-            } else {
-                const selectedLotId = parseInt(rawVal);
-                const product = await apiCall(`/products/${productId}`);
-                const lot = (product.lots || []).find(l => l.id === selectedLotId);
-                if (lot) {
-                    const previous = Math.round(Number(lot.current_quantity) || 0);
-                    await apiCall('/lots/add-stock', 'POST', {
-                        product_id: productId,
-                        quantity: qty,
-                        lot_id: selectedLotId
-                    });
-                    stockMsg = `lote ${lot.batch_number || '#'+selectedLotId}: ${previous} → ${previous + qty}`;
-                } else {
-                    throw new Error('El lote seleccionado ya no existe');
-                }
-            }
-        } else {
-            const res = await apiCall(`/products/${productId}/add-stock`, 'POST', {
-                quantity: qty,
-                notes: rawVal === '__new__' || hasLots ? 'Agregado rápido (stock general)' : 'Agregado rápido (escaneo)'
-            });
-            stockMsg = `stock general: ${Math.round(Number(res.previous))} → ${Math.round(Number(res.new))}`;
-        }
-
-        let priceMsg = '';
-        if (newCost !== '' && newCost !== null && newCost !== undefined && newCost !== '') {
-            await apiCall(`/products/${productId}`, 'PUT', { cost: parseFloat(newCost) });
-            priceMsg += ' costo ✓';
-        }
-        if (newPrice !== '' && newPrice !== null && newPrice !== undefined && newPrice !== '') {
-            await apiCall(`/products/${productId}`, 'PUT', { price: parseFloat(newPrice) });
-            priceMsg += ' precio ✓';
-        }
-
-        showToast('✓ Guardado: ' + stockMsg + priceMsg, 'success');
-        closeModal();
-        await Promise.all([loadInventory(), loadLots(true), loadProducts()]);
-        await loadInventoryMovementsHistory();
-
-        const inp = document.getElementById('inventorySearch');
-        if (inp) {
-            inp.value = '';
-            inp.focus();
-            renderInventoryView();
-        }
-    } catch (err) {
-        let msg = 'Error al agregar stock';
-        try { msg = JSON.parse(err.message).error || msg; } catch {}
-        showToast(msg, 'error');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = submitBtn.dataset.origText || '⚡ Agregar';
-            submitBtn.style.opacity = '1';
-        }
-    }
-}
-
-function getInventoryFiltered() {
-    const searchEl = document.getElementById('inventorySearch');
-    const q = (searchEl?.value || '').trim().toLowerCase();
-    const now = new Date();
-    const expLimit = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-    return inventoryData.filter(p => {
-        const matchSearch = !q || p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q));
-        const stock = Number(p.stock || 0);
-        let matchFilter = true;
-        if (invFilter === 'in_stock') matchFilter = stock > 0;
-        else if (invFilter === 'out_stock') matchFilter = stock <= 0;
-        else if (invFilter === 'expiring') {
-            matchFilter = (p.lots || []).some(l => {
-                if (!l.expiry_date || Number(l.current_quantity) <= 0) return false;
-                const exp = new Date(l.expiry_date);
-                return exp <= expLimit;
-            });
-        }
-        return matchSearch && matchFilter;
-    });
-}
-
-function renderInventoryView() {
-    const grid = document.getElementById('invCardGrid');
-    const help = document.getElementById('invHelp');
-    const statBar = document.getElementById('invStatBar');
-    if (!grid) return;
-    const searchEl = document.getElementById('inventorySearch');
-    const hasQuery = (searchEl?.value || '').trim().length > 0 || invFilter !== 'all';
-    const filtered = getInventoryFiltered();
-
-    if (!hasQuery) {
-        if (help) help.style.display = 'flex';
-        if (statBar) statBar.style.display = 'none';
-        grid.innerHTML = '';
-        return;
-    }
-
-    if (help) help.style.display = 'none';
-    if (statBar) statBar.style.display = 'flex';
-
-    let countOk = 0, countOut = 0, countExp = 0, totalValue = 0;
-    const expLimit = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    inventoryData.forEach(p => {
-        const s = Number(p.stock || 0);
-        if (s > 0) countOk++; else countOut++;
-        if ((p.lots || []).some(l => l.expiry_date && new Date(l.expiry_date) <= expLimit && Number(l.current_quantity) > 0)) countExp++;
-        totalValue += s * (Number(p.cost) || 0);
-    });
-
-    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    setEl('invStatOk', countOk);
-    setEl('invStatOut', countOut);
-    setEl('invStatExp', countExp);
-    setEl('invStatValue', '$' + totalValue.toFixed(2));
-
-    if (filtered.length === 0) {
-        grid.innerHTML = `<div class="inv-empty">No se encontraron productos con esos criterios</div>`;
-        return;
-    }
-
-    const sorted = filtered.slice().sort((a, b) => (Number(b.stock) || 0) - (Number(a.stock) || 0));
-    grid.innerHTML = sorted.map(p => renderInventoryCard(p)).join('');
-}
-
-function renderInventoryCard(p) {
-    const stock = Number(p.stock || 0);
-    const stockClass = stock > 0 ? 'inv-stock-ok' : 'inv-stock-out';
-    const stockLabel = stock > 0 ? `🟢 ${stock} en stock` : `🔴 Agotado`;
-    const cost = Number(p.cost) || 0;
-    const price = Number(p.price) || 0;
-    const categoryColor = p.category_color || '#6b7280';
-    const safeName = escapeHtml(p.name).replace(/'/g, "\\'");
-    const expSoon = (p.lots || []).some(l => l.expiry_date && new Date(l.expiry_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && Number(l.current_quantity) > 0);
-    const expBadge = expSoon ? `<span class="inv-card-tag inv-tag-warn">⏰ Caduca pronto</span>` : '';
-    return `
-    <div class="inv-card" onclick="openInventoryDetail(${p.id})">
-        <div class="inv-card-top">
-            <div class="inv-card-name">${escapeHtml(p.name)}</div>
-            <span class="inv-card-cat" style="background:${categoryColor}20;color:${categoryColor}">${escapeHtml(p.category_name || 'Sin categoría')}</span>
-        </div>
-        <div class="inv-card-barcode">${escapeHtml(p.barcode || '—')}</div>
-        <div class="inv-card-prices">
-            <div class="inv-price">
-                <span class="inv-price-lbl">💲 Costo</span>
-                <span class="inv-price-val inv-price-cost">$${cost.toFixed(2)}</span>
-            </div>
-            <div class="inv-price">
-                <span class="inv-price-lbl">💰 Venta</span>
-                <span class="inv-price-val inv-price-sale">$${price.toFixed(2)}</span>
-            </div>
-        </div>
-        <div class="inv-card-stock ${stockClass}">${stockLabel}</div>
-        <div class="inv-card-tags">${expBadge}</div>
-        <div class="inv-card-actions">
-            <button class="inv-btn-add" onclick="event.stopPropagation();showAddStockModal(${p.id},'${safeName}')">+ Agregar Stock</button>
-            <button class="inv-btn-adjust" onclick="event.stopPropagation();showAdjustProductStockModal(${p.id})">🔧 Ajustar</button>
-            <button class="inv-btn-move" onclick="event.stopPropagation();showMoveBetweenLotsModal(${p.id},'${safeName}')">↔️ Mover</button>
-        </div>
-    </div>`;
-}
-
-function openInventoryDetail(productId) {
-    const p = inventoryData.find(x => x.id === productId);
-    if (!p) return;
-    invDetailProductId = productId;
-    const panel = document.getElementById('invSidePanel');
-    const overlay = document.getElementById('invSideOverlay');
-    const title = document.getElementById('invSideTitle');
-    const body = document.getElementById('invSideBody');
-    if (!panel || !body) return;
-    title.textContent = p.name;
-
-    const stock = Number(p.stock || 0);
-    const cost = Number(p.cost) || 0;
-    const price = Number(p.price) || 0;
-    const margin = price - cost;
-    const marginPct = price > 0 ? (margin / price * 100) : 0;
-    const categoryColor = p.category_color || '#6b7280';
-    const safeName = escapeHtml(p.name).replace(/'/g, "\\'");
-
-    const lotsHtml = (p.lots && p.lots.length) ? p.lots.map(l => {
-        const qty = Number(l.current_quantity) || 0;
-        const exp = l.expiry_date ? new Date(l.expiry_date) : null;
-        const days = exp ? Math.round((exp - new Date()) / (24 * 60 * 60 * 1000)) : null;
-        let expClass = 'inv-lot-ok';
-        let expLabel = exp ? exp.toLocaleDateString('es-MX') : '—';
-        if (days !== null) {
-            if (days < 0) { expClass = 'inv-lot-expired'; expLabel = `Vencido ${Math.abs(days)}d`; }
-            else if (days <= 30) { expClass = 'inv-lot-warn'; expLabel = `${expLabel} (${days}d)`; }
-        }
-        return `
-        <div class="inv-lot-row">
-            <div class="inv-lot-l"><strong>${qty}</strong> u.<br><small>${escapeHtml(l.batch_number || 's/lote')}</small></div>
-            <div class="inv-lot-r"><span class="${expClass}">${expLabel}</span></div>
-        </div>`;
-    }).join('') : `<div class="inv-empty" style="padding:12px">Este producto no maneja lotes</div>`;
-
-    body.innerHTML = `
-        <div class="inv-side-prices">
-            <div class="inv-side-price">
-                <span class="inv-side-price-lbl">💲 Costo</span>
-                <span class="inv-side-price-val">$${cost.toFixed(2)}</span>
-            </div>
-            <div class="inv-side-price">
-                <span class="inv-side-price-lbl">💰 Venta</span>
-                <span class="inv-side-price-val inv-price-sale">$${price.toFixed(2)}</span>
-            </div>
-            <div class="inv-side-price">
-                <span class="inv-side-price-lbl">📈 Margen</span>
-                <span class="inv-side-price-val">$${margin.toFixed(2)} (${marginPct.toFixed(1)}%)</span>
-            </div>
-        </div>
-        <div class="inv-side-meta">
-            <div><span class="inv-meta-lbl">Stock:</span> <strong>${stock}</strong></div>
-            <div><span class="inv-meta-lbl">Categoría:</span> <span class="inv-card-cat" style="background:${categoryColor}20;color:${categoryColor}">${escapeHtml(p.category_name || '—')}</span></div>
-            <div><span class="inv-meta-lbl">Código:</span> ${escapeHtml(p.barcode || '—')}</div>
-        </div>
-        <div class="inv-side-section">
-            <h4>📅 Lotes</h4>
-            <div class="inv-lot-list">${lotsHtml}</div>
-        </div>
-        <div class="inv-side-actions">
-            <button class="btn btn-primary" onclick="closeInventoryDetail();showAddStockModal(${p.id},'${safeName}')">+ Agregar Stock (y precios)</button>
-            <button class="btn btn-secondary" onclick="closeInventoryDetail();showAdjustProductStockModal(${p.id})">🔧 Ajustar stock (poner en 0 o aumentar)</button>
-            ${p.has_lots && (p.lots || []).length >= 2 ? `<button class="btn btn-secondary" onclick="closeInventoryDetail();showMoveBetweenLotsModal(${p.id},'${safeName}')">↔️ Mover entre lotes</button>` : ''}
-            <button class="btn btn-secondary" onclick="closeInventoryDetail();openProductEdit(${p.id})">✏️ Editar producto</button>
-            <button class="btn btn-secondary" onclick="closeInventoryDetail();showProductHistory(${p.id},'${safeName}')">📜 Ver historial</button>
-            ${p.has_lots ? `<button class="btn btn-secondary" onclick="closeInventoryDetail();showProductLots(${p.id},'${safeName}')">📋 Ver todos los lotes</button>` : ''}
-        </div>
-    `;
-    panel.classList.add('open');
-    if (overlay) overlay.classList.add('open');
-    panel.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('inv-panel-open');
-}
-
-function closeInventoryDetail() {
-    const panel = document.getElementById('invSidePanel');
-    const overlay = document.getElementById('invSideOverlay');
-    if (panel) {
-        if (document.activeElement && panel.contains(document.activeElement)) {
-            document.activeElement.blur();
-        }
-        panel.classList.remove('open');
-        panel.setAttribute('aria-hidden', 'true');
-    }
-    if (overlay) overlay.classList.remove('open');
-    document.body.classList.remove('inv-panel-open');
-    invDetailProductId = null;
-}
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        const panel = document.getElementById('invSidePanel');
-        if (panel && panel.classList.contains('open')) {
-            closeInventoryDetail();
-        }
-    }
-});
-
-function openProductEdit(productId) {
-    const p = inventoryData.find(x => x.id === productId);
-    if (!p) return;
-    products = products.length ? products : [...allProducts];
-    if (!products.find(x => x.id === productId)) products.push(p);
-    showSection('products');
-    if (typeof editProduct === 'function') {
-        editProduct(productId);
-    } else {
-        showToast('Función de edición no disponible', 'error');
-    }
-}
-
-function showAddStockModal(productId, productName) {
-    const product = inventoryData.find(p => p.id === productId);
-    const hasLots = product && product.has_lots;
-    const currentCost = product ? (Number(product.cost) || 0) : 0;
-    const currentPrice = product ? (Number(product.price) || 0) : 0;
-    const generalStock = product ? Math.round(Number(product.product_stock != null ? product.product_stock : product.stock) || 0) : 0;
-
-    if (hasLots) {
-        const productLots = allLots
-            .filter(l => l.product_id === productId)
-            .sort((a, b) => (a.days_left ?? 999) - (b.days_left ?? 999));
-
-        const today = new Date();
-        const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const expiryStr = defaultExpiry.toISOString().slice(0, 10);
-
-        const lotsHtml = productLots.length === 0
-            ? '<p style="font-size:12px;color:#9ca3af;padding:8px;text-align:center">Este producto aún no tiene lotes. Se creará uno nuevo.</p>'
-            : `
-                <label class="lot-pick-option">
-                    <input type="radio" name="lot_choice" value="general" checked>
-                    <div class="lot-pick-card">
-                        <div>
-                            <strong>📦 Stock general (${generalStock} pzas)</strong>
-                            <span class="lot-pick-meta">Agrega a la cantidad general del producto, sin lote</span>
-                        </div>
-                    </div>
-                </label>
-                <label class="lot-pick-option">
-                    <input type="radio" name="lot_choice" value="new">
-                    <div class="lot-pick-card">
-                        <strong>➕ Crear lote nuevo</strong>
-                        <span class="lot-pick-meta">Se creará un lote con la fecha/cantidad indicada</span>
-                    </div>
-                </label>
-                ${productLots.map(l => {
-                    const days = l.days_left != null ? l.days_left : null;
-                    let badge = '';
-                    if (days != null) {
-                        if (days < 0) badge = `<span class="badge badge-danger">Vencido ${Math.abs(days)}d</span>`;
-                        else if (days <= 7) badge = `<span class="badge badge-warning">${days}d</span>`;
-                        else badge = `<span class="badge badge-success">${days}d</span>`;
-                    }
-                    return `
-                    <label class="lot-pick-option">
-                        <input type="radio" name="lot_choice" value="${l.id}">
-                        <div class="lot-pick-card">
-                            <div>
-                                <strong>${escapeHtml(l.batch_number || 'Lote #' + l.id)}</strong>
-                                <span class="lot-pick-meta">Caduca: ${l.expiry_date || '—'} ${badge}</span>
-                                <span class="lot-pick-meta">Stock actual: <strong>${parseFloat(l.current_quantity || 0).toFixed(0)}</strong> pzas</span>
-                            </div>
-                        </div>
-                    </label>`;
-                }).join('')}
-            `;
-
-        showModal('➕ Agregar Stock - ' + productName, `
-            <form id="addStockForm" onsubmit="submitAddStock(event, ${productId})">
-                <div class="form-section-title">📦 Elige dónde agregar</div>
-                <div class="lot-pick-list">${lotsHtml}</div>
-
-                <div id="addStockQtyFields">
-                    <div class="form-group">
-                        <label>Cantidad *</label>
-                        <input type="number" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
-                    </div>
-                </div>
-
-                <div id="addStockNewFields">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Fecha de Caducidad *</label>
-                            <input type="date" name="expiry_date" value="${expiryStr}" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Número de Lote (opcional)</label>
-                            <input type="text" name="batch_number" placeholder="LOTE-${Date.now().toString().slice(-6)}">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-section-title">💲 Actualizar precios (opcional)</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Costo de compra</label>
-                        <input type="number" name="cost" min="0" step="0.01" value="${currentCost.toFixed(2)}">
-                    </div>
-                    <div class="form-group">
-                        <label>Precio de venta</label>
-                        <input type="number" name="price" min="0" step="0.01" value="${currentPrice.toFixed(2)}">
-                    </div>
-                </div>
-                <p style="font-size:11px;color:#9ca3af;margin-top:-4px">Si los modificas, se actualizarán en el producto al guardar.</p>
-                <div style="display:flex;gap:8px;margin-top:16px">
-                    <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="flex:1">💾 Guardar</button>
-                </div>
-            </form>
-        `, {
-            enterNav: { primarySelector: '#modalBody button[type="submit"].btn-primary' }
-        });
-
-        setTimeout(() => {
-            const form = document.getElementById('addStockForm');
-            if (!form) return;
-            const toggle = () => {
-                const choice = form.querySelector('input[name="lot_choice"]:checked')?.value;
-                const newFields = document.getElementById('addStockNewFields');
-                const isNew = choice === 'new' || !choice;
-                if (newFields) {
-                    newFields.style.display = isNew ? 'block' : 'none';
-                    const exp = form.querySelector('input[name="expiry_date"]');
-                    if (exp) exp.required = isNew;
-                }
-            };
-            form.querySelectorAll('input[name="lot_choice"]').forEach(r => r.addEventListener('change', toggle));
-            toggle();
-        }, 30);
-    } else {
-        showModal('➕ Agregar Stock - ' + productName, `
-            <p style="font-size:12px;color:#6b7280;margin-bottom:12px">Este producto no usa lotes. Se agregará al stock general.</p>
-            <form id="addStockForm" onsubmit="submitAddDirectStock(event, ${productId})">
-                <div class="form-group">
-                    <label>Cantidad *</label>
-                    <div style="font-size:13px;color:#1d4ed8;font-weight:600;margin-bottom:6px">📦 Stock actual: ${generalStock} pzas</div>
-                    <input type="number" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
-                </div>
-                <div class="form-group">
-                    <label>Notas (opcional)</label>
-                    <input type="text" name="notes" placeholder="Ej: Compra, ajuste, etc.">
-                </div>
-                <div class="form-section-title">💲 Actualizar precios (opcional)</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Costo de compra</label>
-                        <input type="number" name="cost" min="0" step="0.01" value="${currentCost.toFixed(2)}">
-                    </div>
-                    <div class="form-group">
-                        <label>Precio de venta</label>
-                        <input type="number" name="price" min="0" step="0.01" value="${currentPrice.toFixed(2)}">
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px">
-                    <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="flex:1">💾 Guardar</button>
-                </div>
-            </form>
-        `, {
-            enterNav: { primarySelector: '#modalBody button[type="submit"].btn-primary' }
-        });
-    }
-}
-
-async function submitAddStock(event, productId) {
-    event.preventDefault();
-    const form = event.target;
-    const choice = form.querySelector('input[name="lot_choice"]:checked')?.value;
-    const qty = Math.round(parseFloat(form.quantity.value));
-    const newCost = form.cost?.value;
-    const newPrice = form.price?.value;
-    let priceUpdated = false, costUpdated = false;
-    const updates = [];
-    try {
-        let msg = '';
-        if (choice === 'general') {
-            const res = await apiCall(`/products/${productId}/add-stock`, 'POST', {
-                quantity: qty,
-                notes: 'Agregado a stock general'
-            });
-            msg = `✓ Stock general: ${res.previous} → ${res.new}`;
-            if (newCost !== '' && newCost !== null && newCost !== undefined) {
-                await apiCall(`/products/${productId}`, 'PUT', { cost: parseFloat(newCost) });
-                costUpdated = true;
-            }
-            if (newPrice !== '' && newPrice !== null && newPrice !== undefined) {
-                await apiCall(`/products/${productId}`, 'PUT', { price: parseFloat(newPrice) });
-                priceUpdated = true;
-            }
-        } else {
-            const data = {
-                product_id: productId,
-                quantity: qty,
-                expiry_date: form.expiry_date?.value || null,
-                batch_number: form.batch_number?.value || null,
-                cost: newCost || null,
-                price: newPrice || null
-            };
-            if (choice && choice !== 'new') data.lot_id = parseInt(choice);
-            const result = await apiCall('/lots/add-stock', 'POST', data);
-            msg = '✓ ' + result.message;
-        }
-        closeModal();
-        if (costUpdated) updates.push('costo');
-        if (priceUpdated) updates.push('precio');
-        if (updates.length) msg += ` (precios actualizados: ${updates.join(', ')})`;
-        showToast(msg, 'success');
-        await Promise.all([loadInventory(), loadLots(true), loadProductsTable(), loadProducts()]);
-        if (invDetailProductId === productId) openInventoryDetail(productId);
-    } catch (error) {
-        let msg = 'Error al agregar stock';
-        try { msg = JSON.parse(error.message).error || msg; } catch {}
-        showToast(msg, 'error');
-    }
-}
-
-async function submitAddDirectStock(event, productId) {
-    event.preventDefault();
-    const form = event.target;
-    try {
-        const stockRes = await apiCall(`/products/${productId}/add-stock`, 'POST', {
-            quantity: Math.round(parseFloat(form.quantity.value)),
-            notes: form.notes?.value || ''
-        });
-        const newCost = form.cost?.value;
-        const newPrice = form.price?.value;
-        let priceUpdated = false, costUpdated = false;
-        if (newCost !== '' && newCost !== null && newCost !== undefined) {
-            await apiCall(`/products/${productId}`, 'PUT', { cost: parseFloat(newCost) });
-            costUpdated = true;
-        }
-        if (newPrice !== '' && newPrice !== null && newPrice !== undefined) {
-            await apiCall(`/products/${productId}`, 'PUT', { price: parseFloat(newPrice) });
-            priceUpdated = true;
-        }
-        closeModal();
-        let msg = `✓ Stock: ${stockRes.previous} → ${stockRes.new}`;
-        const updates = [];
-        if (costUpdated) updates.push('costo');
-        if (priceUpdated) updates.push('precio');
-        if (updates.length) msg += ` (precios actualizados: ${updates.join(', ')})`;
-        showToast(msg, 'success');
-        await Promise.all([loadInventory(), loadProducts()]);
-        if (invDetailProductId === productId) openInventoryDetail(productId);
-    } catch (error) {
-        let msg = 'Error al agregar stock';
-        try { msg = JSON.parse(error.message).error || msg; } catch {}
-        showToast(msg, 'error');
-    }
-}
-
-function showAdjustProductStockModal(productId) {
-    const p = inventoryData.find(x => x.id === productId);
-    if (!p) return;
-    const currentStock = Number(p.stock) || 0;
-    const hasLots = p.has_lots;
-    const safeName = escapeHtml(p.name).replace(/'/g, "\\'");
-
-    if (hasLots) {
-        showModal('🔧 Ajustar Stock - ' + p.name, `
-            <p style="font-size:12px;color:#6b7280;margin-bottom:12px">Este producto tiene varios lotes. Ajusta la cantidad del lote que necesites.</p>
-            <div class="form-group">
-                <label>Selecciona el lote a ajustar *</label>
-                <select id="adjustLotSelect">
-                    ${(p.lots || []).map(l => {
-                        const exp = l.expiry_date ? new Date(l.expiry_date).toLocaleDateString('es-MX') : '—';
-                        return `<option value="${l.id}">${escapeHtml(l.batch_number || 's/lote')} · ${Number(l.current_quantity)} u. · caduca ${exp}</option>`;
-                    }).join('')}
-                </select>
-            </div>
-            <form id="adjustForm" onsubmit="submitAdjustProductStock(event, ${productId}, true)">
-                <div class="form-group">
-                    <label>Nueva cantidad *</label>
-                    <input type="number" name="current_quantity" min="0" step="1" inputmode="numeric" pattern="[0-9]*" required>
-                </div>
-                <div class="form-group">
-                    <label>Razón *</label>
-                    <input type="text" name="reason" placeholder="Ej: Conteo físico, merma, corrección..." required>
-                </div>
-                <div class="form-group">
-                    <label>Notas (opcional)</label>
-                    <input type="text" name="notes" placeholder="Detalle adicional">
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px">
-                    <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="flex:1">💾 Ajustar</button>
-                </div>
-            </form>
-        `, {
-            enterNav: { primarySelector: '#modalBody button[type="submit"].btn-primary' }
-        });
-    } else {
-        showModal('🔧 Ajustar Stock - ' + p.name, `
-            <p style="font-size:12px;color:#6b7280;margin-bottom:12px">Define la cantidad absoluta de stock para este producto. Se registrará como ajuste con razón.</p>
-            <div style="background:#f9fafb;border-radius:8px;padding:10px 12px;margin-bottom:12px">
-                <strong>Stock actual:</strong> ${currentStock} unidades
-            </div>
-            <form id="adjustForm" onsubmit="submitAdjustProductStock(event, ${productId}, false)">
-                <div class="form-group">
-                    <label>Nueva cantidad *</label>
-                    <input type="number" name="current_quantity" min="0" step="1" inputmode="numeric" pattern="[0-9]*" value="${currentStock}" required>
-                </div>
-                <div class="form-group">
-                    <label>Razón *</label>
-                    <input type="text" name="reason" placeholder="Ej: Conteo físico, merma, corrección..." required>
-                </div>
-                <div class="form-group">
-                    <label>Notas (opcional)</label>
-                    <input type="text" name="notes" placeholder="Detalle adicional">
-                </div>
-                <div style="display:flex;gap:8px;margin-top:16px">
-                    <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="flex:1">💾 Ajustar</button>
-                </div>
-            </form>
-        `, {
-            enterNav: { primarySelector: '#modalBody button[type="submit"].btn-primary' }
-        });
-    }
-}
-
-async function submitAdjustProductStock(event, productId, hasLots) {
-    event.preventDefault();
-    const form = event.target;
-    const reason = form.reason.value.trim();
-    const notes = form.notes?.value || '';
-    try {
-        if (hasLots) {
-            const lotId = parseInt(document.getElementById('adjustLotSelect').value);
-            if (!lotId) {
-                showToast('Selecciona un lote', 'error');
-                return;
-            }
-            const result = await apiCall('/lots/adjust-stock', 'POST', {
-                lot_id: lotId,
-                current_quantity: Math.round(parseFloat(form.current_quantity.value)),
-                reason, notes
-            });
-            closeModal();
-            showToast(`✓ Lote ajustado: ${Math.round(result.previous)} → ${Math.round(result.new)}`, 'success');
-        } else {
-            const result = await apiCall(`/products/${productId}/adjust-stock`, 'POST', {
-                current_quantity: Math.round(parseFloat(form.current_quantity.value)),
-                reason, notes
-            });
-            closeModal();
-            const sign = result.diff >= 0 ? '+' : '';
-            showToast(`✓ Stock: ${Math.round(result.previous)} → ${Math.round(result.new)} (${sign}${Math.round(result.diff)})`, 'success');
-        }
-        await Promise.all([loadInventory(), loadLots(true), loadProducts()]);
-        if (invDetailProductId === productId) openInventoryDetail(productId);
-    } catch (error) {
-        let msg = 'Error al ajustar stock';
-        try { msg = JSON.parse(error.message).error || msg; } catch {}
-        showToast(msg, 'error');
-    }
-}
-
 /* ===== Vista: Ajustes de Inventario ===== */
 let adjustmentsProduct = null;
 let adjustmentsLotId = null;
-let adjustmentsSearchTimer = null;
 
 function getAdjustmentTarget() {
     if (adjustmentsLotId && adjustmentsProduct) {
@@ -4059,7 +3100,7 @@ function refreshAdjustmentsForm() {
 
     if (target) {
         currentEl.textContent = Number.isInteger(target.current) ? target.current : target.current.toFixed(2);
-        adjustmentEl.value = '-1';
+        adjustmentEl.value = '';
         if (lotSection) lotSection.style.display = adjustmentsProduct.has_lots ? 'block' : 'none';
     }
 
@@ -4080,12 +3121,12 @@ function updateAdjustmentPreview() {
 
     const current = Number(target.current || 0);
     const raw = adjustmentEl.value.trim();
-    const signMatch = raw.match(/^([+-])(\d+(?:\.\d+)?)$/);
+    const signMatch = raw.match(/^([+-]?)(\d+(?:\.\d+)?)$/);
 
     if (!signMatch) {
         newQtyEl.value = '';
         warningEl.style.display = 'block';
-        warningEl.innerHTML = '<span style="color:#e74c3c">Ingresa una cantidad con signo (+ o -) para el ajuste.</span>';
+        warningEl.innerHTML = '<span style="color:#e74c3c">Ingresa una cantidad para el ajuste (sin signo = sumar).</span>';
         submitBtn.disabled = true;
         return;
     }
@@ -4105,38 +3146,6 @@ function updateAdjustmentPreview() {
     }
     const hasReason = reasonEl && reasonEl.value.trim();
     submitBtn.disabled = !hasReason || !Number.isFinite(newQtyEl.valueAsNumber);
-}
-
-function adjustAmount(delta) {
-    const el = document.getElementById('adjustmentAmount');
-    if (!el) return;
-    const raw = el.value.trim();
-    const match = raw.match(/^([+-])(\d+(?:\.\d+)?)$/);
-    let current = 0;
-    let sign = '-';
-    if (match) {
-        sign = match[1];
-        current = parseFloat(match[2]);
-    }
-    let value = sign === '-' ? -current : current;
-    value += delta;
-    if (value > 0) {
-        el.value = '+' + value;
-    } else if (value < 0) {
-        el.value = '-' + Math.abs(value);
-    } else {
-        el.value = '+0';
-    }
-    updateAdjustmentPreview();
-    el.focus();
-}
-
-function setAdjustmentSign(sign) {
-    const el = document.getElementById('adjustmentAmount');
-    if (!el) return;
-    el.value = sign > 0 ? '+1' : '-1';
-    updateAdjustmentPreview();
-    el.focus();
 }
 
 function onAdjustmentAmountInput() {
@@ -4166,25 +3175,27 @@ function selectAdjustmentLot(lotId) {
 function clearAdjustmentsSelection() {
     adjustmentsProduct = null;
     adjustmentsLotId = null;
-    const search = document.getElementById('adjustmentsSearch');
+    const search = document.getElementById('adjustmentsSearchInput');
     const card = document.getElementById('adjustmentsProductCard');
-    const list = document.getElementById('adjustmentsRecentList');
-    const clearBtn = document.getElementById('adjustmentsSearchClear');
+    const overlay = document.getElementById('adjustmentsSearchOverlay');
     if (search) search.value = '';
     if (card) card.style.display = 'none';
-    if (list) list.innerHTML = '';
-    if (clearBtn) clearBtn.style.display = 'none';
+    if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.style.display = 'none';
+    }
     const amountEl = document.getElementById('adjustmentAmount');
     const newQtyEl = document.getElementById('adjustmentNewQuantity');
     const curEl = document.getElementById('adjustmentCurrentQuantity');
     const warnEl = document.getElementById('adjustmentWarning');
     const submitBtn = document.getElementById('submitAdjustmentBtn');
-    if (amountEl) amountEl.value = '-1';
+    if (amountEl) amountEl.value = '';
     if (newQtyEl) newQtyEl.value = '';
     if (curEl) curEl.textContent = '--';
     if (warnEl) warnEl.style.display = 'none';
     if (submitBtn) submitBtn.disabled = true;
     EnterNav.deactivate('adjustments');
+    focusAdjustmentsSearch();
 }
 
 function showAdjustmentProduct(product) {
@@ -4199,8 +3210,6 @@ function showAdjustmentProduct(product) {
     document.getElementById('adjustmentsProductCode').textContent = product.barcode || `ID ${product.id}`;
     document.getElementById('adjustmentsProductName').textContent = product.name;
     document.getElementById('adjustmentsProductCat').textContent = product.category_name || 'Sin categoria';
-    document.getElementById('adjustmentsFieldCode').textContent = product.barcode || '--';
-    document.getElementById('adjustmentsFieldDesc').textContent = product.name;
     document.getElementById('adjustmentCurrentQuantity').textContent = Number.isInteger(curStock) ? curStock : curStock.toFixed(2);
 
     const costEl = document.getElementById('adjustmentsCost');
@@ -4208,7 +3217,7 @@ function showAdjustmentProduct(product) {
     if (costEl) costEl.value = Number(product.cost ?? 0);
     if (priceEl) priceEl.value = Number(product.price ?? 0);
 
-    document.getElementById('adjustmentAmount').value = '-1';
+    document.getElementById('adjustmentAmount').value = '';
     document.getElementById('adjustmentNewQuantity').value = '';
     document.getElementById('adjustmentWarning').style.display = 'none';
     document.getElementById('submitAdjustmentBtn').disabled = true;
@@ -4245,73 +3254,26 @@ function showAdjustmentProduct(product) {
         scopeKey: 'adjustments',
         container: card,
         primarySelector: '#submitAdjustmentBtn',
-        skipSelectors: ['.adjustments-sign-btn', '#submitAdjustmentBtn']
+        skipSelectors: ['#submitAdjustmentBtn']
     });
 
-    const recentList = document.getElementById('adjustmentsRecentList');
-    if (recentList) {
-        const existing = recentList.querySelector(`[data-product-id="${product.id}"]`);
-        if (existing) existing.remove();
-        const stockStr = Number.isInteger(curStock) ? curStock : curStock.toFixed(2);
-        recentList.insertAdjacentHTML('afterbegin', `<div class="adjustments-recent-item" data-product-id="${product.id}" onclick="openAdjustmentProduct(${product.id})">
-            <div>
-                <div class="rec-name">${escapeHtml(product.name)}</div>
-                <div class="rec-code">${escapeHtml(product.barcode || 'ID ' + product.id)}</div>
-            </div>
-            <div class="rec-stock">${stockStr} u.</div>
-        </div>`);
-        while (recentList.children.length > 5) recentList.lastElementChild.remove();
+    const overlay = document.getElementById('adjustmentsSearchOverlay');
+    if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.style.display = 'none';
+    }
+    const input = document.getElementById('adjustmentsSearchInput');
+    if (input) input.value = '';
+    focusAdjustmentAmount();
+}
+
+function focusAdjustmentAmount() {
+    const amountEl = document.getElementById('adjustmentAmount');
+    if (amountEl) {
+        amountEl.focus();
     }
 }
 
-async function handleAdjustmentSearch() {
-    const input = document.getElementById('adjustmentsSearch');
-    const query = input ? input.value.trim() : '';
-    const clearBtn = document.getElementById('adjustmentsSearchClear');
-    if (!query) {
-        clearAdjustmentsSelection();
-        return;
-    }
-    if (clearBtn) clearBtn.style.display = 'block';
-    try {
-        if (looksLikeBarcode(query)) {
-            try {
-                const product = await apiCall('/products/barcode/' + encodeURIComponent(query));
-                showAdjustmentProduct(product);
-                showToast('Producto encontrado: ' + product.name, 'success');
-                return;
-            } catch (e) {
-                // sin coincidencia exacta: cae a la búsqueda por texto/prefijo
-            }
-        }
-        const params = new URLSearchParams({ search: query });
-        const results = await apiCall('/products?' + params.toString());
-        if (!results.length) {
-            showToast('No se encontro ningun producto con ese codigo o nombre', 'warning');
-            return;
-        }
-        if (results.length === 1) {
-            const product = await apiCall('/adjustments/product/' + results[0].id);
-            showAdjustmentProduct(product);
-            showToast('Producto encontrado: ' + product.name, 'success');
-        } else {
-            const list = document.getElementById('adjustmentsRecentList');
-            const stockStr = (p) => { const s = Number(p.stock ?? 0); return Number.isInteger(s) ? s : s.toFixed(2); };
-            list.innerHTML = results.slice(0, 8).map(p => `<div class="adjustments-recent-item" data-product-id="${p.id}" onclick="openAdjustmentProduct(${p.id})">
-                <div>
-                    <div class="rec-name">${escapeHtml(p.name)}</div>
-                    <div class="rec-code">${escapeHtml(p.barcode || 'ID ' + p.id)}</div>
-                </div>
-                <div class="rec-stock">${stockStr(p)} u.</div>
-            </div>`).join('');
-            showToast('Se encontraron ' + results.length + ' productos', 'success');
-        }
-    } catch (error) {
-        let msg = 'Error al buscar producto';
-        try { msg = JSON.parse(error.message).error || msg; } catch {}
-        showToast(msg, 'error');
-    }
-}
 
 async function openAdjustmentProduct(productId) {
     try {
@@ -4370,194 +3332,6 @@ async function submitAdjustment(event) {
         focusAdjustmentsSearch();
     } catch (error) {
         let msg = 'Error al realizar el ajuste';
-        try { msg = JSON.parse(error.message).error || msg; } catch {}
-        showToast(msg, 'error');
-    }
-}
-
-function onAdjustmentsSearchInput() {
-    const input = document.getElementById('adjustmentsSearch');
-    const clearBtn = document.getElementById('adjustmentsSearchClear');
-    if (!input) return;
-    if (input.value.trim()) {
-        if (clearBtn) clearBtn.style.display = 'block';
-    } else {
-        if (clearBtn) clearBtn.style.display = 'none';
-    }
-    clearTimeout(adjustmentsSearchTimer);
-    const trimmed = input.value.trim();
-    if (trimmed.length >= 2) {
-        const delay = looksLikeBarcode(trimmed) ? 40 : 300;
-        adjustmentsSearchTimer = setTimeout(() => handleAdjustmentSearch(), delay);
-    }
-}
-
-function clearAdjustmentsSearch() {
-    const input = document.getElementById('adjustmentsSearch');
-    const clearBtn = document.getElementById('adjustmentsSearchClear');
-    clearTimeout(adjustmentsSearchTimer);
-    if (input) input.value = '';
-    if (clearBtn) clearBtn.style.display = 'none';
-    clearAdjustmentsSelection();
-}
-
-function handleAdjustmentsKey(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        clearTimeout(adjustmentsSearchTimer);
-        handleAdjustmentSearch();
-    } else if (e.key === 'Escape') {
-        clearAdjustmentsSelection();
-    }
-}
-
-function showMoveBetweenLotsModal(productId, productName) {
-    const p = inventoryData.find(x => x.id === productId);
-    if (!p || !p.has_lots || !p.lots || p.lots.length < 2) {
-        showToast('Se necesitan al menos 2 lotes para mover stock', 'warning');
-        return;
-    }
-
-    const lots = p.lots.map(l => {
-        const exp = l.expiry_date ? new Date(l.expiry_date).toLocaleDateString('es-MX') : '—';
-        const days = l.days_left != null ? l.days_left : null;
-        let badge = '';
-        if (days !== null) {
-            if (days < 0) badge = `<span class="badge badge-danger">Vencido ${Math.abs(days)}d</span>`;
-            else if (days <= 7) badge = `<span class="badge badge-warning">${days}d</span>`;
-            else badge = `<span class="badge badge-success">${days}d</span>`;
-        }
-        return {
-            id: l.id,
-            label: `${l.batch_number || 's/lote'} · ${Number(l.current_quantity)} u. · caduca ${exp} ${badge}`,
-            qty: Number(l.current_quantity) || 0
-        };
-    });
-
-    showModal('↔️ Mover entre lotes - ' + productName, `
-        <p style="font-size:12px;color:#6b7280;margin-bottom:12px">Transfiere piezas de un lote a otro. El lote origen se ajustará (puede quedar en 0) y el destino aumentará.</p>
-        <form id="moveLotsForm" onsubmit="submitMoveBetweenLots(event, ${productId})">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Lote origen (de donde sale) *</label>
-                    <select id="moveFromLot" required>
-                        ${lots.map(l => `<option value="${l.id}" data-qty="${l.qty}">${l.label}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Lote destino (a donde llega) *</label>
-                    <select id="moveToLot" required>
-                        ${lots.map(l => `<option value="${l.id}" data-qty="${l.qty}">${l.label}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Cantidad a mover *</label>
-                <input type="number" id="moveQty" name="quantity" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
-                <small id="moveHint" style="color:#6b7280;font-size:11px"></small>
-            </div>
-            <div class="form-group">
-                <label>Notas (opcional)</label>
-                <input type="text" name="notes" placeholder="Ej: Reorganización, consolidación...">
-            </div>
-            <div style="display:flex;gap:8px;margin-top:16px">
-                <button type="button" class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary" style="flex:1">↔️ Mover</button>
-            </div>
-        </form>
-    `, {
-        enterNav: { primarySelector: '#modalBody button[type="submit"].btn-primary' }
-    });
-
-    setTimeout(() => {
-        const fromSel = document.getElementById('moveFromLot');
-        const toSel = document.getElementById('moveToLot');
-        const qtyInp = document.getElementById('moveQty');
-        const hint = document.getElementById('moveHint');
-        if (!fromSel || !toSel || !qtyInp) return;
-
-        const updateHint = () => {
-            const fromOpt = fromSel.options[fromSel.selectedIndex];
-            const fromQty = parseFloat(fromOpt?.dataset?.qty || 0);
-            const qty = parseFloat(qtyInp.value || 0);
-            if (!qty) { hint.textContent = `Disponible en origen: ${fromQty} u.`; return; }
-            const newFrom = fromQty - qty;
-            if (newFrom < 0) {
-                hint.innerHTML = `<span style="color:#d71920">⚠️ Excede stock origen (${fromQty} disponibles)</span>`;
-            } else if (newFrom === 0) {
-                hint.innerHTML = `Origen quedará en <strong>0</strong>, destino sumará <strong>${qty}</strong>`;
-            } else {
-                hint.innerHTML = `Origen quedará en <strong>${newFrom}</strong>, destino sumará <strong>${qty}</strong>`;
-            }
-            if (fromSel.value === toSel.value) {
-                hint.innerHTML = `<span style="color:#d71920">⚠️ Origen y destino deben ser distintos</span>`;
-            }
-        };
-
-        fromSel.addEventListener('change', updateHint);
-        toSel.addEventListener('change', updateHint);
-        qtyInp.addEventListener('input', updateHint);
-        updateHint();
-    }, 30);
-}
-
-async function submitMoveBetweenLots(event, productId) {
-    event.preventDefault();
-    const form = event.target;
-    const fromId = parseInt(document.getElementById('moveFromLot').value);
-    const toId = parseInt(document.getElementById('moveToLot').value);
-    const qty = Math.round(parseFloat(form.quantity.value));
-    const notes = form.notes?.value || '';
-
-    if (fromId === toId) {
-        showToast('Origen y destino deben ser distintos', 'error');
-        return;
-    }
-    if (!qty || qty <= 0) {
-        showToast('Cantidad inválida', 'error');
-        return;
-    }
-
-    const product = inventoryData.find(x => x.id === productId);
-    const fromLot = product?.lots?.find(l => l.id === fromId);
-    const toLot = product?.lots?.find(l => l.id === toId);
-    if (!fromLot || !toLot) {
-        showToast('Lotes no encontrados', 'error');
-        return;
-    }
-
-    const fromQty = Number(fromLot.current_quantity) || 0;
-    const toQty = Number(toLot.current_quantity) || 0;
-
-    if (qty > fromQty) {
-        showToast(`Solo hay ${fromQty} u. en el lote origen`, 'error');
-        return;
-    }
-
-    try {
-        const newFrom = fromQty - qty;
-        const newTo = toQty + qty;
-        const reason = notes || `Movimiento entre lotes (${fromLot.batch_number || '#'+fromId} → ${toLot.batch_number || '#'+toId})`;
-
-        await apiCall('/lots/adjust-stock', 'POST', {
-            lot_id: fromId,
-            current_quantity: newFrom,
-            reason: 'Movimiento entre lotes (salida)',
-            notes
-        });
-        await apiCall('/lots/adjust-stock', 'POST', {
-            lot_id: toId,
-            current_quantity: newTo,
-            reason: 'Movimiento entre lotes (entrada)',
-            notes
-        });
-
-        closeModal();
-        showToast(`✓ Movido: ${fromLot.batch_number || '#'+fromId} (${fromQty}→${newFrom}) → ${toLot.batch_number || '#'+toId} (${toQty}→${newTo})`, 'success');
-        await Promise.all([loadInventory(), loadLots(true), loadProducts()]);
-        if (invDetailProductId === productId) openInventoryDetail(productId);
-    } catch (error) {
-        let msg = 'Error al mover entre lotes';
         try { msg = JSON.parse(error.message).error || msg; } catch {}
         showToast(msg, 'error');
     }
@@ -6290,7 +5064,7 @@ function renderCart() {
                 <div class="cart-product-stock">${stockLabel}</div>
             </td>
             <td class="col-barcode">${escapeHtml(item.barcode || '—')}</td>
-            <td style="text-align:right;font-weight:600">$${item.price.toFixed(2)}</td>
+            <td class="col-unit" style="text-align:right;font-weight:600">$${item.price.toFixed(2)}</td>
             <td class="col-qty">
                 <input type="number" value="${item.quantity}" min="1" step="1" inputmode="numeric" pattern="[0-9]*" data-cart-index="${index}" onchange="setCartItemQtyFromInput(this)" onclick="event.stopPropagation()" onfocus="selectCartRow(${index})">
             </td>
@@ -9670,11 +8444,9 @@ function focusPosSearchBar() {
 }
 
 function closeAllOverlays() {
-    document.querySelectorAll('.modal-overlay.active, .payment-overlay, .inv-side-overlay.open, .lot-selector-overlay').forEach(el => {
+    document.querySelectorAll('.modal-overlay.active, .payment-overlay, .lot-selector-overlay').forEach(el => {
         if (el.classList.contains('payment-overlay')) {
             el.style.display = 'none';
-        } else if (el.classList.contains('inv-side-overlay')) {
-            el.classList.remove('open');
         } else {
             el.classList.remove('active');
         }
@@ -9700,7 +8472,6 @@ function closeModal() {
     if (typeof cb === 'function') {
         try { cb(); } catch {}
     }
-    focusInventorySearch();
 }
 
 function showConfirmDialog({ title = 'Confirmar', message = '', icon = '', confirmText = 'Aceptar', confirmIcon = '', cancelText = 'Cancelar', danger = false, onConfirm = null, onCancel = null } = {}) {

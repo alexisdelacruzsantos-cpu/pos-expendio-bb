@@ -77,11 +77,6 @@
                         <span class="ubuntu-tile-label">Productos</span>
                         <span class="ubuntu-tile-shortcut">2</span>
                     </button>
-                    <button class="ubuntu-tile" data-section="inventory" data-shortcut="3">
-                        <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></svg></span>
-                        <span class="ubuntu-tile-label">Agregar inventario</span>
-                        <span class="ubuntu-tile-shortcut">3</span>
-                    </button>
                     <button class="ubuntu-tile" data-section="adjustments" data-shortcut="a">
                         <span class="ubuntu-tile-icon"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></span>
                         <span class="ubuntu-tile-label">Ajustes</span>
@@ -159,9 +154,6 @@
                     <div class="pos-header">
                         <div class="pos-search-bar">
                             <input type="text" id="posSearchInput" class="pos-search" placeholder="Escanea código o escribe para buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="handlePosKey(event)" oninput="onPosSearchChange()">
-                            <button class="pos-search-btn" onclick="openProductSearchModal()" title="Buscar producto (F10)">
-                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg> Buscar
-                    </button>
                         </div>
                     </div>
 
@@ -218,7 +210,6 @@
                         <div class="pos-cart-header">
                             <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path></svg> Ticket de Venta</h3>
                             <span class="pos-cart-shortcuts">
-                                <span class="kbd">F10</span> Buscar
                                 <span class="kbd">Del</span> Eliminar
                                 <span class="kbd">Ctrl+Del</span> Vaciar
                             </span>
@@ -296,46 +287,34 @@
             <!-- Products Section -->
             <section class="content-section" id="productsSection">
                 <div class="products-hero">
-                    <div class="inv-title-row">
-                        <div>
-                            <h2 class="inv-title"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Productos</h2>
-                            <p class="inv-subtitle">Catálogo, precios y registro de productos</p>
+                        <div class="inv-title-row">
+                            <div>
+                                <h2 class="inv-title">📦 Productos</h2>
+                                <p class="inv-subtitle">Catálogo, precios y registro de productos</p>
+                            </div>
                         </div>
-                        <div class="products-view-toggles">
-                            <button class="view-toggle-btn active" id="viewToggleCards" onclick="switchProductsView('cards')" title="Vista tarjetas">
-                                <span>▦</span>
-                            </button>
-                            <button class="view-toggle-btn" id="viewToggleTable" onclick="switchProductsView('table')" title="Vista tabla">
-                                <span>☰</span>
-                            </button>
+                        <div class="products-controls-row">
+                            <input type="text" id="productSearch" placeholder="Buscar por nombre o código, o escanea un código y presiona Enter…" class="search-input products-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="searchProducts()" onkeydown="handleProductQuickScan(event)">
+                            <select id="productCategoryFilter" class="products-cat-select" onchange="filterProductsByCategory()" title="Filtrar por categoría">
+                                <option value="">Todas</option>
+                            </select>
+                            <div class="inv-filter-chips" id="productsStockChips">
+                                <button class="inv-chip active" data-filter="all" onclick="setProductsStockFilter('all')">Todos</button>
+                                <button class="inv-chip" data-filter="in_stock" onclick="setProductsStockFilter('in_stock')">✅ Stock</button>
+                                <button class="inv-chip" data-filter="out_stock" onclick="setProductsStockFilter('out_stock')">🔴 Agotados</button>
+                            </div>
+                            <button class="btn btn-secondary" onclick="goToCategories()">🗂 Categorías</button>
+                            <button class="btn btn-secondary" onclick="exportProductsCsv()">⇩ Excel</button>
+                            <button class="btn btn-secondary" onclick="exportProductsPdf()">⇩ PDF</button>
+                            <button class="btn btn-primary" onclick="showAddProductModal()">+ Nuevo</button>
                         </div>
                     </div>
-                    <div class="products-controls-row">
-                        <input type="text" id="productSearch" placeholder="Buscar por nombre o código, o escanea un código y presiona Enter…" class="search-input products-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="searchProducts()" onkeydown="handleProductQuickScan(event)">
-                        <select id="productCategoryFilter" class="products-cat-select" onchange="filterProductsByCategory()" title="Filtrar por categoría">
-                            <option value="">Todas</option>
-                        </select>
-                        <div class="inv-filter-chips" id="productsStockChips">
-                            <button class="inv-chip active" data-filter="all" onclick="setProductsStockFilter('all')">Todos</button>
-                            <button class="inv-chip" data-filter="in_stock" onclick="setProductsStockFilter('in_stock')">✅ Stock</button>
-                            <button class="inv-chip" data-filter="out_stock" onclick="setProductsStockFilter('out_stock')">🔴 Agotados</button>
-                        </div>
-                        <button class="btn btn-secondary" onclick="goToCategories()">🗂 Categorías</button>
-                        <button class="btn btn-secondary" onclick="exportProductsCsv()">⇩ Excel</button>
-                        <button class="btn btn-secondary" onclick="exportProductsPdf()">⇩ PDF</button>
-                        <button class="btn btn-primary" onclick="showAddProductModal()">+ Nuevo</button>
-                    </div>
-                </div>
 
-                <span class="products-count" id="productsCount" style="display:none">0 productos</span>
+                    <div class="product-search-results" id="productSearchResults" style="display:none"></div>
 
-                <!-- Sub-vista: Tarjetas -->
-                <div class="inv-subview" id="productsSubviewCards">
-                    <div class="inv-card-grid" id="productsCardGrid"></div>
-                </div>
+                    <span class="products-count" id="productsCount" style="display:none">0 productos</span>
 
-                <!-- Sub-vista: Tabla -->
-                <div class="inv-subview" id="productsSubviewTable" style="display:none">
+                    <!-- Tabla -->
                     <div class="products-table-container">
                         <table class="data-table products-table" id="productsTable">
                             <thead>
@@ -354,8 +333,7 @@
                             <tbody id="productsTableBody"></tbody>
                         </table>
                     </div>
-                </div>
-            </section>
+                </section>
 
             <!-- Lots Section -->
             <section class="content-section" id="lotsSection">
@@ -420,56 +398,6 @@
                 <div class="ex-hint">↑↓ navegar · Enter detalle · Esc cerrar</div>
             </section>
 
-            <!-- Inventory Section -->
-            <section class="content-section" id="inventorySection">
-                <div class="inv-layout">
-
-                    <!-- Panel izquierdo: buscador + acción rápida -->
-                    <aside class="inv-side-panel-left">
-                        <div class="inv-search-wrap">
-<span class="inv-search-icon"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg></span>
-                            <input type="text" id="inventorySearch" class="inv-search-input"
-                                placeholder="Buscar o escanea código + Enter…"
-                                title="Escanea un código de barras y presiona Enter para abrir el modal de agregado rápido"
-                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                                oninput="onInventorySearchChange()">
-                            <button class="inv-search-clear" id="invSearchClear" onclick="clearInventorySearch()" type="button" style="display:none">✕</button>
-                        </div>
-                        <p class="inv-search-hint">⚡ Escanea código + Enter = agregado rápido</p>
-                    </aside>
-
-                    <!-- Área principal: tarjetas -->
-                    <div class="inv-main-area">
-                        <div class="inv-stat-bar" id="invStatBar" style="display:none">
-                            <div class="inv-stat inv-stat-ok"><span class="inv-stat-num" id="invStatOk">0</span><span class="inv-stat-lbl">Con stock</span></div>
-                            <div class="inv-stat inv-stat-out"><span class="inv-stat-num" id="invStatOut">0</span><span class="inv-stat-lbl">Agotados</span></div>
-                            <div class="inv-stat inv-stat-warn"><span class="inv-stat-num" id="invStatExp">0</span><span class="inv-stat-lbl">Por caducar</span></div>
-                            <div class="inv-stat"><span class="inv-stat-num" id="invStatValue">$0.00</span><span class="inv-stat-lbl">Valor inventario</span></div>
-                        </div>
-
-                        <!-- Tarjetas -->
-                        <div class="inv-subview" id="invSubviewCards">
-                            <div class="inv-help" id="invHelp">
-                                <div class="inv-help-icon"><svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></div>
-                                <p class="inv-help-text">Empieza a escribir o escanea un producto para ver resultados</p>
-                                <p class="inv-help-hint">Tip: si escaneas un código, abriremos el detalle del producto al instante</p>
-                            </div>
-                            <div class="inv-card-grid" id="invCardGrid"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Panel lateral de detalle -->
-                <div class="inv-side-overlay" id="invSideOverlay" onclick="closeInventoryDetail()"></div>
-                <aside class="inv-side-panel" id="invSidePanel" aria-hidden="true">
-                    <div class="inv-side-header">
-                        <h3 id="invSideTitle">Detalle de producto</h3>
-                        <button class="inv-side-close" onclick="closeInventoryDetail()" type="button" aria-label="Cerrar">✕</button>
-                    </div>
-                    <div class="inv-side-body" id="invSideBody"></div>
-                </aside>
-            </section>
-
             <!-- Historial de Movimientos (independiente de Inventario) -->
             <section class="content-section" id="inventory-historySection">
                 <div class="inv-history-header">
@@ -532,36 +460,52 @@
             <section class="content-section" id="adjustmentsSection">
                 <div class="adjustments-layout">
 
-                    <!-- Panel izquierdo: búsqueda -->
-                    <div class="adjustments-search-panel">
-                        <div class="adjustments-search-box">
-                            <div class="adjustments-search-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></div>
-                            <input type="text" id="adjustmentsSearch" class="adjustments-search-input"
-                                placeholder="Escanea código de barras o escribe para buscar…"
-                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                                onkeydown="handleAdjustmentsKey(event)" oninput="onAdjustmentsSearchInput()">
-                            <button class="adjustments-search-clear" id="adjustmentsSearchClear" onclick="clearAdjustmentsSearch()" type="button" style="display:none">✕</button>
+                    <!-- Barra de búsqueda (mismo componente que Ventas) -->
+                    <div class="pos-header">
+                        <div class="pos-search-bar">
+                            <input type="text" id="adjustmentsSearchInput" class="pos-search" placeholder="Escanea código o escribe para buscar..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="handlePosKey(event)" oninput="onPosSearchChange()">
                         </div>
-                        <p class="adjustments-search-hint">⚡ Escanea o busca un producto para ajustarlo</p>
-
-                        <div class="adjustments-recent-title">🔍 Búsqueda reciente</div>
-                        <div class="adjustments-recent-list" id="adjustmentsRecentList"></div>
                     </div>
 
-                    <!-- Panel derecho: formulario de ajuste -->
-                    <div class="adjustments-form-panel">
-                        <div class="adjustments-empty" id="adjustmentsEmpty">
-                            <div class="adjustments-empty-icon"><svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></div>
-                            <h3>Ajustar Inventario</h3>
-                            <p>Busca un producto por código de barras o por nombre para realizar un ajuste de inventario, stock y precios.</p>
+                    <!-- Overlay de resultados de búsqueda (mismo componente que Ventas) -->
+                    <div class="pos-search-overlay" id="adjustmentsSearchOverlay">
+                        <div class="pos-search-overlay-header">
+                            <strong>Resultados de búsqueda</strong>
+                            <button class="pos-search-close" onclick="closeSearchResults()" type="button">✕ Cerrar</button>
                         </div>
+                        <div class="pos-search-filters">
+                            <label class="pos-filter-chip">
+                                <input type="checkbox" id="adjustmentsFilterInStock" checked onchange="onPosFilterChange()">
+                                <span>✅ Solo con stock</span>
+                            </label>
+                            <label class="pos-filter-chip">
+                                <span>Ordenar:</span>
+                                <select id="adjustmentsFilterSort" onchange="onPosFilterChange()">
+                                    <option value="name_asc">Nombre A-Z</option>
+                                    <option value="stock_desc">Stock mayor a menor</option>
+                                    <option value="stock_asc">Stock menor a mayor</option>
+                                    <option value="price_asc">Precio menor a mayor</option>
+                                    <option value="price_desc">Precio mayor a menor</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="pos-search-results-list" id="adjustmentsSearchResultsList">
+                            <!-- Resultados dinámicos -->
+                        </div>
+                    </div>
 
+                    <!-- Panel de formulario de ajuste -->
+                    <div class="adjustments-form-panel">
                         <div class="adjustments-product-card" id="adjustmentsProductCard" style="display:none">
                             <div class="adjustments-product-header">
                                 <div>
                                     <div class="adjustments-product-code" id="adjustmentsProductCode"></div>
                                     <h3 class="adjustments-product-name" id="adjustmentsProductName"></h3>
                                     <div class="adjustments-product-cat" id="adjustmentsProductCat"></div>
+                                    <div class="adjustments-header-qty">
+                                        <span>Cantidad Actual:</span>
+                                        <strong id="adjustmentCurrentQuantity">—</strong>
+                                    </div>
                                 </div>
                                 <button class="btn btn-secondary btn-sm" onclick="clearAdjustmentsSelection()">✕</button>
                             </div>
@@ -572,24 +516,10 @@
                             </div>
 
                             <div class="adjustments-form-grid">
-                                <div class="adjustments-field">
-                                    <label>Código del Producto</label>
-                                    <div class="adjustments-field-value" id="adjustmentsFieldCode"></div>
-                                </div>
-                                <div class="adjustments-field">
-                                    <label>Descripción</label>
-                                    <div class="adjustments-field-value" id="adjustmentsFieldDesc"></div>
-                                </div>
-                                <div class="adjustments-field">
-                                    <label>Cantidad Actual</label>
-                                    <div class="adjustments-field-value" id="adjustmentCurrentQuantity">—</div>
-                                </div>
                                 <div class="adjustments-field adjustments-field-adjust">
-                                    <label>Parámetro de Ajuste (+/-)</label>
+                                    <label>Parámetro de Ajuste</label>
                                     <div class="adjustments-field-value">
-                                        <button class="adjustments-sign-btn" onclick="adjustAmount(-1)" type="button">−</button>
-                                        <input type="text" id="adjustmentAmount" value="-1" inputmode="numeric" pattern="[0-9+-]*" oninput="onAdjustmentAmountInput()">
-                                        <button class="adjustments-sign-btn" onclick="adjustAmount(1)" type="button">+</button>
+                                        <input type="text" id="adjustmentAmount" value="" inputmode="numeric" pattern="[0-9+-]*" oninput="onAdjustmentAmountInput()">
                                     </div>
                                 </div>
                                 <div class="adjustments-field adjustments-field-newqty">
