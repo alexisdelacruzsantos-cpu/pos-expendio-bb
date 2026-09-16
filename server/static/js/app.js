@@ -1218,6 +1218,9 @@ function navigateTo(section) {
 
 function setupFunctionKeyBlocker() {
     const blocked = new Set(['F1','F2','F3','F5','F6','F7','F8','F9','F10','F11','F12']);
+    // Teclas que el propio sistema usa como atajos: se previene el default del
+    // navegador pero la propagación sigue para que los handlers de la app corran.
+    const appShortcutKeys = new Set(['F2','F4','F9','F10','F12']);
     const blockedCombos = [
         ['Control','f'], ['Control','F'], ['Control','p'], ['Control','P'],
         ['Control','s'], ['Control','S'], ['Control','r'], ['Control','R']
@@ -1235,7 +1238,9 @@ function setupFunctionKeyBlocker() {
         if (blocked.has(e.key) || comboMatch) {
             if (!inLocalInput || blocked.has(e.key)) {
                 e.preventDefault();
-                e.stopPropagation();
+                if (!appShortcutKeys.has(e.key)) {
+                    e.stopPropagation();
+                }
             }
         }
     }, { capture: true });
@@ -1256,6 +1261,8 @@ function setupSectionShortcuts() {
             e.preventDefault();
             if (!document.getElementById('salesSection').classList.contains('active')) {
                 navigateTo('sales');
+            } else {
+                focusPosSearch();
             }
         } else if (e.key === 'F4') {
             e.preventDefault();
