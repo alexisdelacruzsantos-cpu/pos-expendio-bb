@@ -89,8 +89,6 @@ def apply_adjustment():
         product_id = data.get('product_id')
         lot_id = data.get('lot_id')
         reason = (data.get('reason') or '').strip()
-        if not reason:
-            return jsonify({'error': 'El motivo del ajuste es obligatorio'}), 400
 
         db = Database(get_db_path())
 

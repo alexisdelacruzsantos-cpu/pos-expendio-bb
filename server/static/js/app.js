@@ -3312,11 +3312,7 @@ async function submitAdjustment(event) {
         showToast('Ingresa un ajuste valido (+/- cantidad)', 'error');
         return;
     }
-    if (!reason) {
-        showToast('Indica el motivo del ajuste', 'warning');
-        document.getElementById('adjustmentsReason')?.focus();
-        return;
-    }
+
     if (price < 0 || cost < 0) {
         showToast('El precio y el costo no pueden ser negativos', 'error');
         return;
