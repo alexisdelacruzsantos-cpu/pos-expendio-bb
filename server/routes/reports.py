@@ -6,6 +6,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
+from utils.permissions import is_admin
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -69,6 +70,8 @@ def low_stock_legacy():
 @reports_bp.route('/sales-summary', methods=['GET'])
 @jwt_required()
 def sales_summary():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         date_from = request.args.get('date_from')
@@ -127,6 +130,8 @@ def sales_summary():
 @reports_bp.route('/top-products', methods=['GET'])
 @jwt_required()
 def top_products():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         date_from = request.args.get('date_from')
@@ -164,9 +169,10 @@ def top_products():
 @reports_bp.route('/inventory-value', methods=['GET'])
 @jwt_required()
 def inventory_value():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
-        
         value = db.fetch_all('''
             SELECT p.name, p.barcode, 
                    (COALESCE(SUM(l.current_quantity), 0) + COALESCE(p.stock, 0)) as quantity,
@@ -198,6 +204,8 @@ def inventory_value():
 @reports_bp.route('/top-selling', methods=['GET'])
 @jwt_required()
 def top_selling():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         limit = int(request.args.get('limit', 10))
@@ -262,6 +270,8 @@ def expiring_soon():
 @reports_bp.route('/value-by-category', methods=['GET'])
 @jwt_required()
 def value_by_category():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
 
@@ -319,6 +329,8 @@ def low_stock_detail():
 @reports_bp.route('/losses-by-product', methods=['GET'])
 @jwt_required()
 def losses_by_product():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         limit = int(request.args.get('limit', 10))
@@ -347,6 +359,8 @@ def losses_by_product():
 @reports_bp.route('/sales', methods=['GET'])
 @jwt_required()
 def sales_report():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         date_from = request.args.get('date_from')
@@ -490,6 +504,8 @@ def sales_report():
 @reports_bp.route('/inventory-cut', methods=['GET'])
 @jwt_required()
 def inventory_cut():
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
     try:
         db = Database(get_db_path())
         products = db.fetch_all('''

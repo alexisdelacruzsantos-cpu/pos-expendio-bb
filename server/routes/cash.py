@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
 from utils.security import Security
+from utils.permissions import is_admin
 
 cash_bp = Blueprint('cash', __name__)
 
@@ -437,6 +438,9 @@ def get_cash_registers():
         limit = request.args.get('limit')
         query = 'SELECT * FROM cash_registers WHERE 1=1'
         params = []
+        if not is_admin():
+            query += ' AND user_id = ?'
+            params.append(_current_user_id())
         if status:
             query += ' AND status = ?'
             params.append(status)
@@ -450,6 +454,7 @@ def get_cash_registers():
                 pass
         registers = db.fetch_all(query, params)
         return jsonify([_serialize_register(r) for r in registers]), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -462,6 +467,8 @@ def get_cash_details(cash_id):
         cash = db.fetch_one('SELECT * FROM cash_registers WHERE id = ?', (cash_id,))
         if not cash:
             return jsonify({'error': 'Caja no encontrada'}), 404
+        if not is_admin() and cash['user_id'] != _current_user_id():
+            return jsonify({'error': 'No autorizado para ver este turno'}), 403
         sales = db.fetch_all('''
             SELECT * FROM sales
             WHERE cash_register_id = ?
@@ -483,20 +490,30 @@ def get_overdue_shifts():
         yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         
         # Check if there's an open shift from yesterday
-        yesterday_shift = db.fetch_one('''
+        where = "WHERE cr.status = 'open' AND DATE(cr.open_date) = ?"
+        params = [yesterday]
+        if not is_admin():
+            where += ' AND cr.user_id = ?'
+            params.append(_current_user_id())
+        yesterday_shift = db.fetch_one(f'''
             SELECT cr.*, u.username, u.full_name as owner_full_name
             FROM cash_registers cr
             LEFT JOIN users u ON cr.user_id = u.id
-            WHERE cr.status = 'open' AND DATE(cr.open_date) = ?
-        ''', (yesterday,))
+            {where}
+        ''', tuple(params))
         
         # Also get all open shifts from today (in case someone forgot to close yesterday's and opened another today)
-        today_shifts = db.fetch_all('''
+        where = "WHERE cr.status = 'open' AND DATE(cr.open_date) = ?"
+        params = [today]
+        if not is_admin():
+            where += ' AND cr.user_id = ?'
+            params.append(_current_user_id())
+        today_shifts = db.fetch_all(f'''
             SELECT cr.*, u.username, u.full_name as owner_full_name
             FROM cash_registers cr
             LEFT JOIN users u ON cr.user_id = u.id
-            WHERE cr.status = 'open' AND DATE(cr.open_date) = ?
-        ''', (today,))
+            {where}
+        ''', tuple(params))
         
         # Check if there are multiple open shifts (potential issue)
         open_today_count = len(today_shifts)
@@ -534,6 +551,9 @@ def get_cash_history():
         date_to = request.args.get('date_to')
         query = 'SELECT * FROM cash_registers WHERE 1=1'
         params = []
+        if not is_admin():
+            query += ' AND user_id = ?'
+            params.append(_current_user_id())
         if date_from:
             query += ' AND DATE(open_date) >= ?'
             params.append(date_from)
@@ -544,6 +564,7 @@ def get_cash_history():
         params.append(int(limit))
         registers = db.fetch_all(query, params)
         return jsonify([_serialize_register(r) for r in registers]), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -556,6 +577,8 @@ def get_cash_receipt(cash_id):
         cash = db.fetch_one('SELECT * FROM cash_registers WHERE id = ?', (cash_id,))
         if not cash:
             return jsonify({'error': 'Caja no encontrada'}), 404
+        if not is_admin() and cash['user_id'] != _current_user_id():
+            return jsonify({'error': 'No autorizado para ver este comprobante'}), 403
         sales = db.fetch_all('''
             SELECT s.*, si.quantity, si.unit_price, si.total as item_total, si.discount,
                    p.name as product_name

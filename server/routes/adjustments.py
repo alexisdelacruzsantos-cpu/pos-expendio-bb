@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
 from utils.movements import log_movement
+from utils.permissions import require_permission
 
 adjustments_bp = Blueprint('adjustments', __name__)
 
@@ -21,6 +22,7 @@ def _current_user_id():
 
 @adjustments_bp.route('/product/<int:product_id>', methods=['GET'])
 @jwt_required()
+@require_permission('products', 'edit')
 def get_adjustment_product(product_id):
     """Detalle completo de un producto para la vista de ajustes."""
     try:
@@ -77,6 +79,7 @@ def get_adjustment_product(product_id):
 
 @adjustments_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_permission('products', 'edit')
 def apply_adjustment():
     """
     Ajuste de inventario estilo "ajustar inventario":

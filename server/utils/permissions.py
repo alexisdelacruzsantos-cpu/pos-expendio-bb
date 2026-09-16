@@ -26,6 +26,38 @@ def _current_role():
         return None
 
 
+def current_user_id():
+    """ID del usuario autenticado (int) o None."""
+    try:
+        v = get_jwt_identity()
+        return int(v) if v is not None else None
+    except Exception:
+        return None
+
+
+def is_admin():
+    """True si el usuario autenticado tiene rol admin."""
+    return _current_role() == 'admin'
+
+
+def has_permission(module, action='view'):
+    """Comprueba permisos sin bloquear la petición (para uso dentro de rutas).
+
+    module: sales | products | cash_register | reports | settings | users
+    action: view | create | edit | delete
+    El rol 'admin' siempre tiene acceso total.
+    """
+    try:
+        if is_admin():
+            return True
+        db = Database(get_db_path())
+        role = _current_role()
+        perms = db.get_permissions_by_role(role)
+        return bool((perms.get(module) or {}).get('can_' + action, 0))
+    except Exception:
+        return False
+
+
 def require_permission(module, action='view'):
     """Valida que el usuario autenticado tenga permiso en la BD.
 

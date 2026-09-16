@@ -14,6 +14,7 @@ from config import get_db_path
 from utils.database import Database
 from utils.movements import log_movement
 from utils.security import Security
+from utils.permissions import has_permission, is_admin
 from datetime import datetime as _dt
 
 sales_bp = Blueprint('sales', __name__)
@@ -120,6 +121,8 @@ def create_sale():
         amount_tendered = data.get('amount_tendered', 0)
         cashier_id = get_jwt_identity()
         force_no_stock = data.get('force_no_stock', False)
+        if force_no_stock and not has_permission('products', 'edit') and not is_admin():
+            return jsonify({'error': 'No tienes permiso para operar sin existencias'}), 403
 
         if not items:
             return jsonify({'error': 'No se especificaron artículos para la venta'}), 400
@@ -147,16 +150,33 @@ def create_sale():
 
             for item in items:
                 product_id = item.get('product_id')
-                quantity = item.get('quantity', 0)
-                unit_price = item.get('unit_price', 0)
-                line_subtotal = quantity * unit_price
-                subtotal += line_subtotal
+                lot_id = item.get('lot_id')
+                if lot_id:
+                    lot = db.fetch_one('SELECT id FROM lots WHERE id = ? AND product_id = ?', (lot_id, product_id))
+                    if not lot:
+                        return jsonify({'error': f'El lote #{lot_id} no pertenece al producto #{product_id}'}), 400
+                try:
+                    quantity = float(item.get('quantity', 0) or 0)
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'Cantidad inválida'}), 400
+                if quantity <= 0:
+                    return jsonify({'error': 'La cantidad debe ser mayor a cero'}), 400
 
                 product = db.fetch_one('''
                     SELECT p.id, p.category_id, p.price, p.name FROM products p WHERE p.id = ?
                 ''', (product_id,))
                 if not product:
-                    continue
+                    return jsonify({'error': f'Producto #{product_id} no encontrado'}), 400
+
+                # Precio SERVER-SIDE: nunca confiar en el unit_price del cliente
+                unit_price = float(product['price'] or 0)
+                if lot_id:
+                    lot = db.fetch_one('SELECT sale_price FROM lots WHERE id = ?', (lot_id,))
+                    if lot and lot['sale_price'] and float(lot['sale_price']) > 0:
+                        unit_price = float(lot['sale_price'])
+                item['unit_price'] = unit_price
+                line_subtotal = quantity * unit_price
+                subtotal += line_subtotal
 
                 promotions = db.fetch_all('''
                     SELECT p.*,
@@ -213,7 +233,15 @@ def create_sale():
                 item['discount'] = round(best_discount, 2)
                 total_discount += best_discount
 
-            manual_discount = data.get('discount', 0)
+            manual_discount = 0
+            try:
+                manual_discount = float(data.get('discount') or 0)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Descuento inválido'}), 400
+            if manual_discount < 0:
+                return jsonify({'error': 'El descuento no puede ser negativo'}), 400
+            if total_discount + manual_discount > subtotal:
+                return jsonify({'error': 'El descuento no puede exceder el subtotal'}), 400
             total_discount += manual_discount
             total = subtotal - total_discount
             change_given = amount_tendered - total if amount_tendered > total else 0
@@ -273,8 +301,11 @@ def create_sale():
                 product_id = item.get('product_id')
                 lot_id = item.get('lot_id')
                 quantity = item.get('quantity', 0)
-                client_unit_price = item.get('unit_price', 0)
                 item_discount = item.get('discount', 0)
+                unit_price = float(item.get('unit_price') or 0)
+                if unit_price <= 0:
+                    price_row = db.fetch_one('SELECT price FROM products WHERE id = ?', (product_id,))
+                    unit_price = price_row['price'] if price_row else 0
 
                 used_base = False
                 if not lot_id:
@@ -291,31 +322,19 @@ def create_sale():
                         ''', (product_id, quantity))
                         if best:
                             lot_id = best['id']
-
-                if not lot_id and not used_base:
-                    any_lot = db.fetch_one('''
-                        SELECT id, current_quantity, sale_price FROM lots
-                        WHERE product_id = ? AND current_quantity > 0
-                        ORDER BY expiry_date ASC
-                        LIMIT 1
-                    ''', (product_id,))
-                    if any_lot:
-                        lot_id = any_lot['id']
-
-                if lot_id:
-                    lot_info = db.fetch_one('SELECT sale_price, current_quantity FROM lots WHERE id = ?', (lot_id,))
-                    if lot_info and lot_info['sale_price'] and lot_info['sale_price'] > 0:
-                        unit_price = lot_info['sale_price']
-                    else:
-                        unit_price = client_unit_price
-                        if unit_price <= 0:
-                            price_row = db.fetch_one('SELECT price FROM products WHERE id = ?', (product_id,))
-                            unit_price = price_row['price'] if price_row else 0
-                else:
-                    unit_price = client_unit_price
-                    if unit_price <= 0:
-                        price_row = db.fetch_one('SELECT price FROM products WHERE id = ?', (product_id,))
-                        unit_price = price_row['price'] if price_row else 0
+                            if best['sale_price'] and float(best['sale_price']) > 0:
+                                unit_price = float(best['sale_price'])
+                        else:
+                            any_lot = db.fetch_one('''
+                                SELECT id, current_quantity, sale_price FROM lots
+                                WHERE product_id = ? AND current_quantity > 0
+                                ORDER BY expiry_date ASC
+                                LIMIT 1
+                            ''', (product_id,))
+                            if any_lot:
+                                lot_id = any_lot['id']
+                                if any_lot['sale_price'] and float(any_lot['sale_price']) > 0:
+                                    unit_price = float(any_lot['sale_price'])
 
                 item_total = quantity * unit_price - item_discount
 
