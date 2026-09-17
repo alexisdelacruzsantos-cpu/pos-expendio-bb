@@ -1,0 +1,30 @@
+name: pos_expendio_bb
+description: POS Expendio BB - App móvil para consultar ventas, reportes e información del POS.
+publish_to: 'none'
+version: 1.1.32+132
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  provider: ^6.1.0
+  shared_preferences: ^2.2.0
+  intl: ^0.20.3
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+flutter_lints:
+  recommended

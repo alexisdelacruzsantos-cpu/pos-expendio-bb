@@ -1,0 +1,11 @@
+{
+  "dart.flutterSdkPath": "/home/alexis/.flutter-sdk",
+  "dart.sdkPath": "/home/alexis/.flutter-sdk/bin/cache/dart-sdk",
+  "dart.lineLength": 100,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true
+  },
+  "files.associations": {
+    "*.dart": "dart"
+  }
+}
