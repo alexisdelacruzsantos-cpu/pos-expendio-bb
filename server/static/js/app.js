@@ -3334,7 +3334,7 @@ function showAdjustmentProduct(product) {
     if (lotList && lotSection) {
         if (hasLots) {
             lotSection.style.display = 'block';
-            lotList.innerHTML = product.lots.map(l => {
+            lotList.innerHTML = product.lots.filter(l => (Number(l.current_quantity || 0)) > 0).map(l => {
                 const qty = Number(l.current_quantity || 0);
                 const qtyStr = Number.isInteger(qty) ? qty : qty.toFixed(2);
                 let badge = '';
