@@ -1938,9 +1938,12 @@ function onPosFilterChange() {
     const els = searchContextEls();
     const inStock = els.inStock;
     const sort = els.sort;
-    if (inStock) {
+    if (inStock && !els.isAdj) {
         inStock.checked = true;
         posSearchFilters.inStockOnly = true;
+    } else if (inStock && els.isAdj) {
+        inStock.checked = false;
+        posSearchFilters.inStockOnly = false;
     }
     if (sort) posSearchFilters.sort = sort.value;
     cancelPosSearchRender();
