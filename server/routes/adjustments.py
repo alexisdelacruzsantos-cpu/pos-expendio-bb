@@ -48,6 +48,16 @@ def get_adjustment_product(product_id):
         ''', (product_id,))
         lots = [dict(l) for l in lots]
 
+        # Inyectar stock general como lote ficticio
+        general_stock = float(d.get('stock') or 0)
+        lots.insert(0, {
+            'id': 0,
+            'batch_number': 'GENERAL',
+            'current_quantity': general_stock,
+            'expiry_date': None,
+            'is_expired': False
+        })
+
         from datetime import datetime, date
         today = date.today()
         for lot in lots:
