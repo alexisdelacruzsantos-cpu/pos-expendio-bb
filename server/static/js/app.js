@@ -1313,6 +1313,8 @@ function setupSectionShortcuts() {
             e.preventDefault();
             if (!document.getElementById('adjustmentsSection').classList.contains('active')) {
                 navigateTo('adjustments');
+            } else {
+                clearAdjustmentsSelection();
             }
         }
     });
@@ -4905,7 +4907,8 @@ function closeLotSelector() {
         if (el._keyHandler) document.removeEventListener('keydown', el._keyHandler, true);
         el.remove();
     }
-    focusPosSearchBar();
+    // Aseguramos el foco tras cerrar el modal
+    setTimeout(focusPosSearchBar, 50);
     if (!isFullscreenActive()) {
         setTimeout(lockFullscreen, 30);
     }
