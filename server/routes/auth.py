@@ -65,6 +65,26 @@ def login():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@auth_bp.route('/users', methods=['GET'])
+def list_users_for_autocomplete():
+    prefix = (request.args.get('prefix') or '').strip().lower()
+    try:
+        db = Database(get_db_path())
+        if prefix:
+            rows = db.fetch_all(
+                '''SELECT username FROM users 
+                   WHERE active = 1 AND LOWER(username) LIKE ? 
+                   ORDER BY username ASC LIMIT 20''',
+                (prefix + '%',)
+            )
+        else:
+            rows = db.fetch_all(
+                '''SELECT username FROM users WHERE active = 1 ORDER BY username ASC LIMIT 20'''
+            )
+        return jsonify({'users': [row['username'] for row in rows]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @auth_bp.route('/validate', methods=['POST'])
 @jwt_required()
 def validate_token():

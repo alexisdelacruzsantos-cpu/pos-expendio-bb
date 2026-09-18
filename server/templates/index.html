@@ -100,6 +100,50 @@
             margin-bottom: 16px;
             display: none;
         }
+        .autocomplete-wrap {
+            position: relative;
+        }
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            margin: 4px 0 0;
+            padding: 4px 0;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+            list-style: none;
+        }
+        .autocomplete-list.visible {
+            display: block;
+        }
+        .autocomplete-item {
+            padding: 10px 16px;
+            font-size: 15px;
+            color: #374151;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .autocomplete-item.active {
+            background: #0072ce;
+            color: white;
+        }
+        .autocomplete-item .hint {
+            float: right;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .autocomplete-item.active .hint {
+            color: #dbeafe;
+        }
         .default-credentials {
             background: #fef3c7;
             padding: 12px;
@@ -125,7 +169,10 @@
         <form id="loginForm">
             <div class="form-group">
                 <label class="form-label" for="username">Usuario</label>
-                <input type="text" id="username" class="form-input" placeholder="Usuario" required autocomplete="username" autofocus>
+                <div class="autocomplete-wrap">
+                    <input type="text" id="username" class="form-input" placeholder="Usuario" required autocomplete="off" autofocus>
+                    <ul id="autocompleteList" class="autocomplete-list"></ul>
+                </div>
             </div>
             
             <div class="form-group">
@@ -196,6 +243,7 @@
                     e.preventDefault();
                     e.stopPropagation();
                     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                    if (typeof closeUserAutocomplete === 'function') closeUserAutocomplete();
                 }
             }, { capture: true });
             document.addEventListener('keyup', function (e) {
@@ -224,6 +272,103 @@
                 try { userInput.setSelectionRange(userInput.value.length, userInput.value.length); } catch (_) {}
             }
         });
+
+        // ===== Autocompletado de usuario =====
+        (function () {
+            const userInput = document.getElementById('username');
+            const listEl = document.getElementById('autocompleteList');
+            let cacheUsers = null;
+            let items = [];
+            let activeIndex = -1;
+
+            window.closeUserAutocomplete = function () {
+                listEl.classList.remove('visible');
+                listEl.innerHTML = '';
+                items = [];
+                activeIndex = -1;
+            };
+
+            function render(users) {
+                listEl.innerHTML = '';
+                items = users;
+                activeIndex = items.length ? 0 : -1;
+                users.forEach((u, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'autocomplete-item' + (i === 0 ? ' active' : '');
+                    li.textContent = u;
+                    li.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        userInput.value = u;
+                        closeUserAutocomplete();
+                        document.getElementById('password').focus();
+                    });
+                    listEl.appendChild(li);
+                });
+                if (items.length) listEl.classList.add('visible');
+                else listEl.classList.remove('visible');
+            }
+
+            function showSuggestions(prefix) {
+                if (!cacheUsers) return;
+                const q = prefix.toLowerCase();
+                const matches = cacheUsers.filter(u => u.toLowerCase().includes(q));
+                if (matches.length && q.length) render(matches);
+                else if (q.length === 0) closeUserAutocomplete();
+            }
+
+            function fetchUsers() {
+                if (cacheUsers) return;
+                fetch('/api/auth/users')
+                    .then(r => r.json())
+                    .then(data => {
+                        cacheUsers = (data.users || []).map(u => u.username || u);
+                        showSuggestions(userInput.value);
+                    })
+                    .catch(() => { cacheUsers = []; });
+            }
+
+            userInput.addEventListener('input', () => {
+                const v = userInput.value;
+                if (v.length === 0) { closeUserAutocomplete(); return; }
+                fetchUsers();
+                showSuggestions(v);
+            });
+
+            userInput.addEventListener('focus', () => {
+                if (userInput.value.length >= 1) {
+                    fetchUsers();
+                    showSuggestions(userInput.value);
+                }
+            });
+
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowDown') {
+                    if (!items.length) { fetchUsers(); showSuggestions(userInput.value); return; }
+                    e.preventDefault();
+                    activeIndex = (activeIndex + 1) % items.length;
+                    updateActive();
+                } else if (e.key === 'ArrowUp') {
+                    if (!items.length) { fetchUsers(); showSuggestions(userInput.value); return; }
+                    e.preventDefault();
+                    activeIndex = (activeIndex - 1 + items.length) % items.length;
+                    updateActive();
+                } else if (e.key === 'Enter') {
+                    if (items.length && activeIndex >= 0 && items[activeIndex]) {
+                        e.preventDefault();
+                        userInput.value = items[activeIndex];
+                        closeUserAutocomplete();
+                        document.getElementById('password').focus();
+                    }
+                }
+            });
+
+            function updateActive() {
+                const children = listEl.children;
+                for (let i = 0; i < children.length; i++) {
+                    children[i].classList.toggle('active', i === activeIndex);
+                }
+            }
+        })();
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
