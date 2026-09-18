@@ -428,7 +428,7 @@
                     </div>
                     <div class="mh-filter-group mh-search-group">
                         <label for="mhSearchInput"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg> Buscar</label>
-                        <input type="text" id="mhSearchInput" placeholder="Producto o código..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                        <input type="text" id="mhSearchInput" placeholder="Producto o código..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="filterMovementsHistory()">
                     </div>
                     <div class="mh-filter-group">
                         <label for="mhDeptFilter"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg> Departamento</label>
@@ -436,7 +436,6 @@
                             <option value="">Todos</option>
                         </select>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="filterMovementsHistory()">🔄 Actualizar</button>
                     <button class="btn btn-secondary btn-sm" onclick="exportMovementsCsv()">📄 Excel/CSV</button>
                     <button class="btn btn-secondary btn-sm" onclick="exportMovementsPdf()">🖨️ PDF</button>
                 </div>
