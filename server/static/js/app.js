@@ -3525,6 +3525,7 @@ function computeMovementTotals(movements) {
 async function loadInventoryMovementsHistory() {
     const daySel = document.getElementById('mhDayFilter');
     if (daySel && !daySel.options.length) populateMHDayFilter();
+    await populateMHDepsFilter();
     const tbody = document.getElementById('inventoryMovementsBody');
     if (!tbody) return;
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#6b7280;padding:16px;">Cargando historial...</td></tr>`;
@@ -3532,9 +3533,11 @@ async function loadInventoryMovementsHistory() {
         const day = getMHDay();
         const type = document.getElementById('mhTypeFilter')?.value || '';
         const q = (document.getElementById('mhSearchInput')?.value || '').trim();
+        const dept = (document.getElementById('mhDeptFilter')?.value || '').trim();
         let url = `/products/movements/recent?limit=500&date_from=${encodeURIComponent(day)}&date_to=${encodeURIComponent(day)}`;
         if (type) url += `&type=${encodeURIComponent(type)}`;
         if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (dept) url += `&dept=${encodeURIComponent(dept)}`;
         const res = await apiCall(url);
         const movements = (res && res.movements) || [];
         inventoryMovementsData = movements;
@@ -3561,6 +3564,24 @@ function populateMHDayFilter() {
         parts.push(`<option value="${iso}" ${i === 0 ? 'selected' : ''}>${label}</option>`);
     }
     sel.innerHTML = parts.join('');
+}
+
+async function populateMHDepsFilter() {
+    const sel = document.getElementById('mhDeptFilter');
+    if (!sel) return;
+    if (sel.dataset.loaded) return;
+    try {
+        const data = await apiCall('/products/departments');
+        const depts = (data && data.departments) || [];
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Todos</option>' + depts
+            .map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`)
+            .join('');
+        if (current) sel.value = current;
+        sel.dataset.loaded = '1';
+    } catch (err) {
+        console.error('No se pudieron cargar los departamentos', err);
+    }
 }
 
 function getMHDay() {

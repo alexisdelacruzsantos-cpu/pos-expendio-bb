@@ -561,6 +561,17 @@ def get_product_movements(product_id):
         return jsonify({'error': str(e)}), 500
 
 
+@products_bp.route('/departments', methods=['GET'])
+@jwt_required()
+def get_departments():
+    try:
+        db = Database(get_db_path())
+        cats = db.fetch_all('SELECT id, name FROM categories WHERE active = 1 ORDER BY sort_order, name')
+        return jsonify({'departments': [dict(c) for c in cats]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @products_bp.route('/movements/recent', methods=['GET'])
 @jwt_required()
 def get_recent_movements():
@@ -571,6 +582,7 @@ def get_recent_movements():
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         q = request.args.get('q', '').strip()
+        dept = request.args.get('dept', '').strip()
 
         sql = '''
             SELECT im.id, im.product_id, im.lot_id, im.movement_type, im.quantity,
@@ -594,6 +606,9 @@ def get_recent_movements():
         if date_to:
             sql += ' AND DATE(im.created_at) <= ?'
             params.append(date_to)
+        if dept:
+            sql += ' AND p.category_id = ?'
+            params.append(dept)
         if movement_type:
             sql += ' AND im.movement_type = ?'
             params.append(movement_type)
