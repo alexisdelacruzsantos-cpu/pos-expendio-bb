@@ -131,7 +131,8 @@ def apply_adjustment():
             new_quantity = data.get('new_quantity')
             adjustment = data.get('adjustment')
             if new_quantity is None and adjustment is None:
-                return jsonify({'error': 'Debe proporcionar nueva cantidad o ajuste'}), 400
+                # Sin ajuste de stock: se permite guardar solo precios/costo
+                new_quantity = current_quantity
 
             if new_quantity is None:
                 try:
@@ -219,11 +220,16 @@ def apply_adjustment():
                 except (TypeError, ValueError):
                     return jsonify({'error': 'El precio del lote debe ser un número válido'}), 400
 
-            # Registrar movimiento de inventario
-            movement_type = 'adjustment'
-            log_movement(db, product_id=product_id, lot_id=lot_id if lot else None,
-                         movement_type=movement_type, quantity=diff,
-                         notes=f'Ajuste: {reason}. Objetivo: {target_label}')
+            # Si no hubo ningún cambio real (stock ni precios), no hay nada que guardar
+            if diff == 0 and not price_changed and not cost_changed and not lot_price_changed:
+                return jsonify({'error': 'No se detectaron cambios para guardar'}), 400
+
+            # Registrar movimiento de inventario (solo si hubo cambio de stock)
+            if diff != 0:
+                movement_type = 'adjustment'
+                log_movement(db, product_id=product_id, lot_id=lot_id if lot else None,
+                             movement_type=movement_type, quantity=diff,
+                             notes=f'Ajuste: {reason}. Objetivo: {target_label}')
 
             # Registro en change_log
             db.execute('''

@@ -236,8 +236,16 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSectionShortcuts();
     setupSalesFocusGuard();
     setupAdjustmentsFocusGuard();
+    setupAdjustmentFormInputs();
     showSection('sales');
 });
+
+function setupAdjustmentFormInputs() {
+    const cost = document.getElementById('adjustmentsCost');
+    const price = document.getElementById('adjustmentsPrice');
+    if (cost) cost.addEventListener('input', updateAdjustmentPreview);
+    if (price) price.addEventListener('input', updateAdjustmentPreview);
+}
 
 function setupGlobalKeys() {
     document.addEventListener('keydown', (e) => {
@@ -1313,6 +1321,10 @@ function setupSectionShortcuts() {
             e.preventDefault();
             if (!document.getElementById('adjustmentsSection').classList.contains('active')) {
                 navigateTo('adjustments');
+            } else if (adjustmentsProduct || document.getElementById('adjustmentsProductCard')?.style.display === 'block') {
+                clearAdjustmentsSelection();
+            } else {
+                focusAdjustmentsSearch();
             }
         }
     });
@@ -1573,6 +1585,7 @@ async function showSection(section) {
     }
     document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`${section}Section`).classList.add('active');
+    syncPosSearchFilters();
 
     const titles = {
         sales: 'Ventas',
@@ -1836,6 +1849,23 @@ let posSelectedIndex = 0;
 let posActiveCategory = null;
 let cartSelectedIndex = 0;
 let posSearchFilters = { inStockOnly: true, sort: 'name_asc' };
+const posFilterStateByContext = {
+    sales: { inStockOnly: true, sort: 'name_asc' },
+    adjustments: { inStockOnly: false, sort: 'name_asc' }
+};
+
+function currentContextFilterState() {
+    return posFilterStateByContext[getSearchContext()] || posFilterStateByContext.sales;
+}
+
+function syncPosSearchFilters() {
+    const st = currentContextFilterState();
+    posSearchFilters.inStockOnly = st.inStockOnly;
+    posSearchFilters.sort = st.sort;
+    const els = searchContextEls();
+    if (els.inStock) els.inStock.checked = st.inStockOnly;
+    if (els.sort) els.sort.value = st.sort;
+}
 
 function getSearchContext() {
     const adj = document.getElementById('adjustmentsSection');
@@ -1936,16 +1966,19 @@ function getFilteredProducts() {
 
 function onPosFilterChange() {
     const els = searchContextEls();
+    const st = currentContextFilterState();
     const inStock = els.inStock;
     const sort = els.sort;
-    if (inStock && !els.isAdj) {
-        inStock.checked = true;
-        posSearchFilters.inStockOnly = true;
-    } else if (inStock && els.isAdj) {
-        inStock.checked = false;
-        posSearchFilters.inStockOnly = false;
+    if (inStock) {
+        if (els.isAdj) {
+            st.inStockOnly = inStock.checked;
+        } else {
+            inStock.checked = true;
+            st.inStockOnly = true;
+        }
     }
-    if (sort) posSearchFilters.sort = sort.value;
+    if (sort) st.sort = sort.value;
+    syncPosSearchFilters();
     cancelPosSearchRender();
     posSelectedIndex = 0;
     posRenderStart = 0;
@@ -3191,6 +3224,7 @@ async function loadInventory() {
 /* ===== Vista: Ajustes de Inventario ===== */
 let adjustmentsProduct = null;
 let adjustmentsLotId = null;
+let adjustmentsOriginal = { cost: 0, price: 0 };
 
 function getAdjustmentTarget() {
     if (adjustmentsLotId && adjustmentsProduct) {
@@ -3226,6 +3260,8 @@ function updateAdjustmentPreview() {
     const newQtyEl = document.getElementById('adjustmentNewQuantity');
     const warningEl = document.getElementById('adjustmentWarning');
     const submitBtn = document.getElementById('submitAdjustmentBtn');
+    const costEl = document.getElementById('adjustmentsCost');
+    const priceEl = document.getElementById('adjustmentsPrice');
     const reasonEl = document.getElementById('adjustmentsReason');
 
     if (!target || !currentEl || !adjustmentEl || !newQtyEl || !warningEl || !submitBtn) return;
@@ -3234,28 +3270,38 @@ function updateAdjustmentPreview() {
     const raw = adjustmentEl.value.trim();
     const signMatch = raw.match(/^([+-]?)(\d+(?:\.\d+)?)$/);
 
-    if (!signMatch) {
+    let changed = false;
+    if (signMatch) {
+        const sign = signMatch[1] === '-' ? -1 : 1;
+        const amount = parseFloat(signMatch[2]);
+        const adjustment = sign * amount;
+        let next = current + adjustment;
+        if (next < 0) next = 0;
+        newQtyEl.value = Number.isInteger(next) ? next : parseFloat(next.toFixed(2));
+        changed = true;
+        if (next === 0 && adjustment < 0) {
+            warningEl.innerHTML = '<span style="color:#e67e22">El stock no puede ser negativo. Se ajustara a 0.</span>';
+            warningEl.style.display = 'block';
+        } else {
+            warningEl.textContent = '';
+            warningEl.style.display = 'none';
+        }
+    } else if (raw !== '') {
         newQtyEl.value = '';
+        warningEl.innerHTML = '<span style="color:#e74c3c">Ingresa una cantidad valida para el ajuste (sin signo = sumar).</span>';
         warningEl.style.display = 'block';
-        warningEl.innerHTML = '<span style="color:#e74c3c">Ingresa una cantidad para el ajuste (sin signo = sumar).</span>';
-        submitBtn.disabled = true;
-        return;
-    }
-
-    const sign = signMatch[1] === '-' ? -1 : 1;
-    const amount = parseFloat(signMatch[2]);
-    const adjustment = sign * amount;
-    let next = current + adjustment;
-    if (next < 0) next = 0;
-
-    newQtyEl.value = Number.isInteger(next) ? next : parseFloat(next.toFixed(2));
-    warningEl.style.display = next === 0 && adjustment < 0 ? 'block' : 'none';
-    if (next === 0 && adjustment < 0) {
-        warningEl.innerHTML = '<span style="color:#e67e22">El stock no puede ser negativo. Se ajustara a 0.</span>';
     } else {
-        warningEl.textContent = '';
+        newQtyEl.value = '';
+        warningEl.style.display = 'none';
     }
-    submitBtn.disabled = !Number.isFinite(newQtyEl.valueAsNumber);
+
+    // Habilitar guardar si hubo CUALQUIER modificación: stock, precios o motivo
+    const newQtyFilled = (newQtyEl.value || '').trim() !== '';
+    const costChanged = parseFloat(costEl?.value || 0) !== adjustmentsOriginal.cost;
+    const priceChanged = parseFloat(priceEl?.value || 0) !== adjustmentsOriginal.price;
+    const reasonChanged = (reasonEl?.value || '').trim() !== '';
+    const hasChange = changed || newQtyFilled || costChanged || priceChanged || reasonChanged;
+    submitBtn.disabled = !hasChange;
 }
 
 function onAdjustmentAmountInput() {
@@ -3326,6 +3372,10 @@ function showAdjustmentProduct(product) {
     const priceEl = document.getElementById('adjustmentsPrice');
     if (costEl) costEl.value = Number(product.cost ?? 0);
     if (priceEl) priceEl.value = Number(product.price ?? 0);
+    adjustmentsOriginal = {
+        cost: Number(product.cost ?? 0),
+        price: Number(product.price ?? 0)
+    };
 
     document.getElementById('adjustmentAmount').value = '';
     document.getElementById('adjustmentNewQuantity').value = '';
@@ -3403,17 +3453,31 @@ async function submitAdjustment(event) {
         return;
     }
     const reason = document.getElementById('adjustmentsReason')?.value.trim() || '';
-    const newQuantity = parseFloat(document.getElementById('adjustmentNewQuantity').value);
-    const adjustment = parseFloat(document.getElementById('adjustmentAmount').value);
-    const cost = parseFloat(document.getElementById('adjustmentsCost').value) || 0;
-    const price = parseFloat(document.getElementById('adjustmentsPrice').value) || 0;
+    const amountEl = document.getElementById('adjustmentAmount');
+    const newQtyEl = document.getElementById('adjustmentNewQuantity');
+    const costEl = document.getElementById('adjustmentsCost');
+    const priceEl = document.getElementById('adjustmentsPrice');
+
+    const amountRaw = (amountEl?.value || '').trim();
+    const newQtyRaw = (newQtyEl?.value || '').trim();
+    const hasAmount = /^[+-]?\d+(?:\.\d+)?$/.test(amountRaw);
+    const hasNewQty = /^[+-]?\d+(?:\.\d+)?$/.test(newQtyRaw);
+    const adjustment = hasAmount ? parseFloat(amountRaw) : null;
+    let newQuantity = hasNewQty ? parseFloat(newQtyRaw) : null;
+    const cost = parseFloat(costEl?.value) || 0;
+    const price = parseFloat(priceEl?.value) || 0;
     const lotId = adjustmentsLotId ? parseInt(adjustmentsLotId) : null;
 
-    if (!Number.isFinite(newQuantity) || newQuantity < 0) {
+    const costChanged = parseFloat(costEl?.value || 0) !== adjustmentsOriginal.cost;
+    const priceChanged = parseFloat(priceEl?.value || 0) !== adjustmentsOriginal.price;
+    const hasReason = reason !== '';
+    const hasStockChange = hasAmount || hasNewQty;
+
+    if (newQuantity !== null && (!Number.isFinite(newQuantity) || newQuantity < 0)) {
         showToast('La nueva cantidad debe ser mayor o igual a 0', 'error');
         return;
     }
-    if (!Number.isFinite(adjustment)) {
+    if (adjustment !== null && !Number.isFinite(adjustment)) {
         showToast('Ingresa un ajuste valido (+/- cantidad)', 'error');
         return;
     }
@@ -3423,17 +3487,31 @@ async function submitAdjustment(event) {
         return;
     }
 
+    if (!hasStockChange && !costChanged && !priceChanged && !hasReason) {
+        showToast('No hay cambios que guardar', 'error');
+        return;
+    }
+
+    // Sin cambio de stock: se guarda solo el precio/costo manteniendo la cantidad actual
+    if (!hasStockChange) {
+        const target = getAdjustmentTarget();
+        newQuantity = target ? target.current : Number(adjustmentsProduct.stock || 0);
+    }
+
+    const payload = {
+        product_id: adjustmentsProduct.id,
+        lot_id: lotId,
+        adjustment: adjustment !== null ? adjustment : 0,
+        new_quantity: newQuantity,
+        new_cost: cost,
+        new_price: price,
+        reason
+    };
+
     try {
-        const result = await apiCall('/adjustments', 'POST', {
-            product_id: adjustmentsProduct.id,
-            lot_id: lotId,
-            adjustment,
-            new_quantity: newQuantity,
-            new_cost: cost,
-            new_price: price,
-            reason
-        });
+        const result = await apiCall('/adjustments', 'POST', payload);
         showToast(result.message, 'success');
+        await loadProducts();
         clearAdjustmentsSelection();
         focusAdjustmentsSearch();
     } catch (error) {
