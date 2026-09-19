@@ -27,7 +27,7 @@ def get_settings():
         terminals = db.fetch_all('SELECT * FROM terminals')
         
         products = db.fetch_all('''
-            SELECT id, name, barcode, price
+            SELECT id, name, barcode, price, stock
             FROM products
             WHERE active = 1
             ORDER BY name

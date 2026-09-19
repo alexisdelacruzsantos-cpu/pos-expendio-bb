@@ -9454,13 +9454,11 @@ function showPromotionModal(promo) {
     const settings = JSON.parse(JSON.stringify(promo || { product_ids: [], category_ids: [] }));
     
     apiCall('/settings/').then(data => {
-        const productOptions = data.categories.map(cat => 
-            `<option value="${cat.id}">${cat.name}</option>`
-        ).join('');
-        
-        const productList = (data.products || []).map(p => 
-            `<option value="${p.id}" data-barcode="${escapeHtml(p.barcode || '')}" data-name="${escapeHtml(p.name)}">${escapeHtml(p.name)}${p.barcode ? ` (${escapeHtml(p.barcode)})` : ''}</option>`
-        ).join('');
+        const productList = (data.products || [])
+            .filter(p => (Number(p.stock) || 0) > 0)
+            .map(p => 
+                `<option value="${p.id}" data-barcode="${escapeHtml(p.barcode || '')}" data-name="${escapeHtml(p.name)}">${escapeHtml(p.name)} — Stock: ${Number(p.stock) || 0}</option>`
+            ).join('');
         
         const isEdit = !!promo;
         const title = isEdit ? 'Editar Promoción' : 'Nueva Promoción';
@@ -9518,20 +9516,12 @@ function showPromotionModal(promo) {
                 <div class="form-group">
                     <label>Aplicar a:</label>
                     <select name="scope_type" id="scopeType" onchange="updateScopeFields()">
-                        <option value="category">Por Categoría</option>
                         <option value="product">Por Producto Específico</option>
                     </select>
                 </div>
                 
-                <div id="categoryScope" class="form-group">
-                    <label>Categorías (mantén Ctrl para múltiples)</label>
-                    <select name="category_ids" multiple size="5">
-                        ${productOptions}
-                    </select>
-                </div>
-                
-                <div id="productScope" class="form-group" style="display:none">
-                    <label>Productos (mantén Ctrl para múltiples)</label>
+                <div id="productScope" class="form-group">
+                    <label>Productos con existencia (mantén Ctrl para múltiples)</label>
                     <input type="text" id="promoProductSearch" placeholder="🔎 Buscar por nombre o código de barras (Enter = código exacto)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="filterPromoProducts(this.value)" onkeydown="handlePromoProductSearch(event)">
                     <select name="product_ids" multiple size="6" id="promoProductSelect">
                         ${productList}
@@ -9555,24 +9545,11 @@ function showPromotionModal(promo) {
         
         if (promo) {
             if (promo.product_ids && promo.product_ids.length > 0) {
-                document.getElementById('scopeType').value = 'product';
-                updateScopeFields();
                 setTimeout(() => {
                     const select = document.querySelector('select[name="product_ids"]');
                     if (select) {
                         Array.from(select.options).forEach(opt => {
                             if (promo.product_ids.includes(parseInt(opt.value))) {
-                                opt.selected = true;
-                            }
-                        });
-                    }
-                }, 100);
-            } else if (promo.category_ids && promo.category_ids.length > 0) {
-                setTimeout(() => {
-                    const select = document.querySelector('select[name="category_ids"]');
-                    if (select) {
-                        Array.from(select.options).forEach(opt => {
-                            if (promo.category_ids.includes(parseInt(opt.value))) {
                                 opt.selected = true;
                             }
                         });
@@ -9593,9 +9570,8 @@ function updatePromoFields() {
 }
 
 function updateScopeFields() {
-    const scope = document.getElementById('scopeType').value;
-    document.getElementById('categoryScope').style.display = scope === 'category' ? '' : 'none';
-    document.getElementById('productScope').style.display = scope === 'product' ? '' : 'none';
+    const productScope = document.getElementById('productScope');
+    if (productScope) productScope.style.display = '';
 }
 
 function filterPromoProducts(term) {
