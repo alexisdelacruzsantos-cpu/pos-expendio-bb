@@ -2009,7 +2009,15 @@ function setPosCategory(catId) {
     renderPosProductsTable();
 }
 
+const POS_SEARCH_INPUT_ID = 'posSearchInput';
+const POS_SEARCH_ALLOWED_RE = /[\p{L}\p{N} ]/u;
+
 function onPosSearchChange() {
+    const search = document.getElementById(POS_SEARCH_INPUT_ID);
+    if (search) {
+        const sanitized = search.value.replace(/[^\p{L}\p{N} ]/gu, '');
+        if (sanitized !== search.value) search.value = sanitized;
+    }
     posSelectedIndex = 0;
     posRenderStart = 0;
     schedulePosSearchRender();
@@ -2188,6 +2196,14 @@ function handlePosKey(e) {
     const search = searchContextEls().input;
     const query = search?.value?.trim() || '';
 
+    if (ctx !== 'adjustments' && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const isQtyShortcut = (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_') && cart.length > 0;
+        if (!isQtyShortcut && !POS_SEARCH_ALLOWED_RE.test(e.key)) {
+            e.preventDefault();
+            return;
+        }
+    }
+
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         cancelPosSearchRender();
@@ -2251,6 +2267,10 @@ function handlePosKey(e) {
                 }
             } else {
                 showToast('No se encontró el producto. Escribe el nombre o código correcto', 'warning');
+                search.value = '';
+                posSelectedIndex = 0;
+                onPosSearchChange();
+                search.focus();
             }
         }
     } else if (e.key === 'F10') {
@@ -5149,66 +5169,129 @@ function confirmClearCart() {
 function applyPromotionsToCart() {
     let totalDiscount = 0;
     const appliedPromos = [];
+    const lineDiscount = cart.map(() => 0);
+    const linePromo = cart.map(() => null);
+    const consumed = cart.map(() => 0);
 
-    cart.forEach(item => {
-        item.discount = 0;
-        item.appliedPromo = null;
-        const lineSubtotal = item.price * item.quantity;
+    const today = localDateStr(new Date());
+    const promoPool = promotions.filter(promo =>
+        promo.active &&
+        !(promo.start_date && promo.start_date > today) &&
+        !(promo.end_date && promo.end_date < today)
+    );
 
-        let bestDiscount = 0;
-        let bestPromo = null;
+    function promoMatches(promo, item) {
+        if (promo.product_ids && promo.product_ids.length > 0) return promo.product_ids.includes(item.id);
+        if (promo.category_ids && promo.category_ids.length > 0) return promo.category_ids.includes(item.category_id);
+        return true;
+    }
 
-        promotions.forEach(promo => {
-            if (!promo.active) return;
-            const today = localDateStr(new Date());
-            if (promo.start_date && promo.start_date > today) return;
-            if (promo.end_date && promo.end_date < today) return;
-
-            let applies = false;
-            if (promo.product_ids && promo.product_ids.length > 0) {
-                if (promo.product_ids.includes(item.id)) applies = true;
-            } else if (promo.category_ids && promo.category_ids.length > 0) {
-                if (promo.category_ids.includes(item.category_id)) applies = true;
-            } else {
-                applies = true;
-            }
-
-            if (!applies) return;
-
-            let discount = 0;
-            if (promo.type === 'bogo') {
-                if (item.quantity >= promo.buy_quantity) {
-                    const promoQty = Math.floor(item.quantity / promo.buy_quantity) * promo.pay_quantity;
-                    const freeQty = item.quantity - promoQty;
-                    discount = freeQty * item.price;
-                }
-            } else if (promo.type === 'fixed_price') {
-                if (item.quantity >= promo.buy_quantity && promo.buy_quantity > 0 && promo.fixed_price > 0 && promo.fixed_price < promo.buy_quantity * item.price) {
-                    const groups = Math.floor(item.quantity / promo.buy_quantity);
-                    const completeItems = groups * promo.buy_quantity;
-                    const regularComplete = completeItems * item.price;
-                    const promoTotal = groups * promo.fixed_price;
-                    discount = regularComplete - promoTotal;
-                }
-            } else if (promo.type === 'percent') {
-                discount = lineSubtotal * (promo.discount_percent / 100);
-            } else if (promo.type === 'fixed_discount') {
-                discount = promo.discount_amount * item.quantity;
-            }
-
-            if (discount > bestDiscount) {
-                bestDiscount = discount;
-                bestPromo = promo;
-            }
+    function computePromo(promo) {
+        const eligible = [];
+        let totalUnits = 0;
+        cart.forEach((item, idx) => {
+            const rem = (Number(item.quantity) || 0) - consumed[idx];
+            if (rem <= 0 || !promoMatches(promo, item)) return;
+            eligible.push({ idx, price: Number(item.price) || 0, rem });
+            totalUnits += rem;
         });
 
-        if (bestDiscount > 0) {
-            item.discount = Math.min(bestDiscount, lineSubtotal);
-            item.appliedPromo = bestPromo;
-            totalDiscount += item.discount;
-            if (!appliedPromos.find(p => p.id === bestPromo.id)) {
-                appliedPromos.push(bestPromo);
+        const alloc = [];
+
+        if (promo.type === 'bogo') {
+            const buyQ = Number(promo.buy_quantity) || 0;
+            const payQ = Number(promo.pay_quantity) || 0;
+            if (buyQ <= 1 || payQ < 1 || totalUnits < buyQ) return null;
+            const groups = Math.floor(totalUnits / buyQ);
+            const freeTotal = groups * (buyQ - payQ);
+            if (freeTotal <= 0) return null;
+            const sorted = eligible.slice().sort((a, b) => b.price - a.price);
+            let freeTaken = 0;
+            let disc = 0;
+            for (const e of sorted) {
+                if (freeTaken >= freeTotal) break;
+                const t = Math.min(e.rem, freeTotal - freeTaken);
+                alloc.push([e.idx, t, e.price]);
+                disc += t * e.price;
+                freeTaken += t;
             }
+            if (freeTaken < freeTotal || disc <= 0.01) return null;
+            return { alloc, disc };
+        }
+
+        if (promo.type === 'fixed_price') {
+            const buyQ = Number(promo.buy_quantity) || 0;
+            const fixP = Number(promo.fixed_price) || 0;
+            if (buyQ <= 0 || fixP <= 0 || totalUnits < buyQ) return null;
+            const groups = Math.floor(totalUnits / buyQ);
+            let need = groups * buyQ;
+            const sorted = eligible.slice().sort((a, b) => b.price - a.price);
+            let taken = 0;
+            let sumTaken = 0;
+            for (const e of sorted) {
+                if (need <= 0) break;
+                const t = Math.min(e.rem, need);
+                alloc.push([e.idx, t, e.price - fixP / buyQ]);
+                sumTaken += t * e.price;
+                taken += t;
+                need -= t;
+            }
+            if (taken < groups * buyQ) return null;
+            const disc = sumTaken - groups * fixP;
+            if (disc <= 0.01) return null;
+            return { alloc, disc };
+        }
+
+        if (promo.type === 'percent') {
+            const rate = Number(promo.discount_percent) || 0;
+            if (rate <= 0) return null;
+            let disc = 0;
+            for (const e of eligible) {
+                alloc.push([e.idx, e.rem, e.price * rate / 100]);
+                disc += e.rem * e.price * rate / 100;
+            }
+            if (disc <= 0.01) return null;
+            return { alloc, disc };
+        }
+
+        if (promo.type === 'fixed_discount') {
+            const amount = Number(promo.discount_amount) || 0;
+            if (amount <= 0) return null;
+            const disc = amount * totalUnits;
+            if (disc <= 0.01) return null;
+            for (const e of eligible) alloc.push([e.idx, e.rem, amount]);
+            return { alloc, disc };
+        }
+
+        return null;
+    }
+
+    while (true) {
+        let best = null;
+        for (const promo of promoPool) {
+            const res = computePromo(promo);
+            if (res && (!best || res.disc > best[1])) best = [res, res.disc, promo];
+        }
+        if (!best) break;
+        for (const [idx, t, per] of best[0].alloc) {
+            lineDiscount[idx] += t * per;
+            consumed[idx] += t;
+            if (!linePromo[idx]) linePromo[idx] = best[2];
+        }
+        if (!appliedPromos.find(p => p.id === best[2].id)) {
+            appliedPromos.push(best[2]);
+        }
+    }
+
+    cart.forEach((item, idx) => {
+        item.discount = 0;
+        item.appliedPromo = linePromo[idx];
+        const lineSubtotal = item.price * item.quantity;
+        const dl = Math.min(lineDiscount[idx], lineSubtotal);
+        if (dl > 0) {
+            item.discount = Math.round(dl * 100) / 100;
+            totalDiscount += item.discount;
+            if (item.appliedPromo === null && appliedPromos.length > 0) item.appliedPromo = appliedPromos[0];
         }
     });
 

@@ -175,63 +175,136 @@ def create_sale():
                     if lot and lot['sale_price'] and float(lot['sale_price']) > 0:
                         unit_price = float(lot['sale_price'])
                 item['unit_price'] = unit_price
-                line_subtotal = quantity * unit_price
-                subtotal += line_subtotal
+                item['category_id'] = product['category_id']
+                subtotal += quantity * unit_price
 
-                promotions = db.fetch_all('''
-                    SELECT p.*,
-                           GROUP_CONCAT(pr.product_id) as product_ids,
-                           GROUP_CONCAT(pc.category_id) as category_ids
-                    FROM promotions p
-                    LEFT JOIN promotion_products pr ON p.id = pr.promotion_id
-                    LEFT JOIN promotion_categories pc ON p.id = pc.promotion_id
-                    WHERE p.active = 1
-                    AND (p.end_date IS NULL OR p.end_date >= DATE('now'))
-                    AND (p.start_date IS NULL OR p.start_date <= DATE('now'))
-                    GROUP BY p.id
-                ''')
+            # Promociones a nivel de carrito: permiten agrupar unidades de
+            # productos DISTINTOS dentro del mismo alcance (mezcla).
+            promotions = db.fetch_all('''
+                SELECT p.*,
+                       GROUP_CONCAT(pr.product_id) as product_ids,
+                       GROUP_CONCAT(pc.category_id) as category_ids
+                FROM promotions p
+                LEFT JOIN promotion_products pr ON p.id = pr.promotion_id
+                LEFT JOIN promotion_categories pc ON p.id = pc.promotion_id
+                WHERE p.active = 1
+                AND (p.end_date IS NULL OR p.end_date >= DATE('now'))
+                AND (p.start_date IS NULL OR p.start_date <= DATE('now'))
+                GROUP BY p.id
+            ''')
 
-                best_discount = 0
-                for promo in promotions:
-                    promo_ids = [int(x) for x in (promo['product_ids'] or '').split(',') if x]
-                    promo_cats = [int(x) for x in (promo['category_ids'] or '').split(',') if x]
+            line_discount = [0.0] * len(items)
+            consumed = [0.0] * len(items)
 
-                    applies = False
-                    if promo_ids and product_id in promo_ids:
-                        applies = True
-                    elif promo_cats and product['category_id'] in promo_cats:
-                        applies = True
-                    elif not promo_ids and not promo_cats:
-                        applies = True
+            def _promo_matches(promo, item):
+                promo_ids = [int(x) for x in (promo['product_ids'] or '').split(',') if x]
+                promo_cats = [int(x) for x in (promo['category_ids'] or '').split(',') if x]
+                if promo_ids:
+                    return item.get('product_id') in promo_ids
+                if promo_cats:
+                    return item.get('category_id') in promo_cats
+                return True
 
-                    if not applies:
+            def _compute_promo(promo):
+                ptype = promo['type']
+                eligible = []
+                total_units = 0.0
+                for idx, item in enumerate(items):
+                    rem = float(item.get('quantity') or 0) - consumed[idx]
+                    if rem <= 0 or not _promo_matches(promo, item):
                         continue
+                    eligible.append((idx, float(item['unit_price']), rem))
+                    total_units += rem
 
-                    discount = 0
-                    if promo['type'] == 'bogo':
-                        if quantity >= promo['buy_quantity']:
-                            promo_qty = (quantity // promo['buy_quantity']) * promo['pay_quantity']
-                            free_qty = quantity - promo_qty
-                            discount = free_qty * unit_price
-                    elif promo['type'] == 'fixed_price':
-                        buy_q = promo['buy_quantity'] or 0
-                        fix_p = promo['fixed_price'] or 0
-                        if buy_q > 0 and fix_p > 0 and quantity >= buy_q and fix_p < buy_q * unit_price:
-                            groups = quantity // buy_q
-                            complete_items = groups * buy_q
-                            regular_price = complete_items * unit_price
-                            promo_total = groups * fix_p
-                            discount = regular_price - promo_total
-                    elif promo['type'] == 'percent':
-                        discount = line_subtotal * (promo['discount_percent'] / 100)
-                    elif promo['type'] == 'fixed_discount':
-                        discount = promo['discount_amount'] * quantity
+                if ptype == 'bogo':
+                    buy_q = promo['buy_quantity'] or 0
+                    pay_q = promo['pay_quantity'] or 0
+                    if buy_q <= 1 or pay_q < 1 or total_units < buy_q:
+                        return None
+                    groups = int(total_units // buy_q)
+                    free_total = groups * (buy_q - pay_q)
+                    if free_total <= 0:
+                        return None
+                    eligible.sort(key=lambda e: e[1], reverse=True)
+                    alloc = []
+                    free_taken = 0.0
+                    disc = 0.0
+                    for idx, price, rem in eligible:
+                        if free_taken >= free_total:
+                            break
+                        t = min(rem, free_total - free_taken)
+                        alloc.append((idx, t, price))
+                        disc += t * price
+                        free_taken += t
+                    if free_taken < free_total or disc <= 0.01:
+                        return None
+                    return {'alloc': alloc, 'disc': disc}
 
-                    if discount > best_discount:
-                        best_discount = discount
+                if ptype == 'fixed_price':
+                    buy_q = promo['buy_quantity'] or 0
+                    fix_p = promo['fixed_price'] or 0
+                    if buy_q <= 0 or fix_p <= 0 or total_units < buy_q:
+                        return None
+                    groups = int(total_units // buy_q)
+                    need = groups * buy_q
+                    taken = 0.0
+                    sum_taken = 0.0
+                    alloc = []
+                    for idx, price, rem in sorted(eligible, key=lambda e: e[1], reverse=True):
+                        if need <= 0:
+                            break
+                        t = min(rem, need)
+                        alloc.append((idx, t, price - fix_p / buy_q))
+                        sum_taken += t * price
+                        taken += t
+                        need -= t
+                    if taken < groups * buy_q:
+                        return None
+                    disc = sum_taken - groups * fix_p
+                    if disc <= 0.01:
+                        return None
+                    return {'alloc': alloc, 'disc': disc}
 
-                item['discount'] = round(best_discount, 2)
-                total_discount += best_discount
+                if ptype == 'percent':
+                    rate = promo['discount_percent'] or 0
+                    if rate <= 0:
+                        return None
+                    alloc = []
+                    disc = 0.0
+                    for idx, price, rem in eligible:
+                        alloc.append((idx, rem, price * rate / 100))
+                        disc += rem * price * rate / 100
+                    if disc <= 0.01:
+                        return None
+                    return {'alloc': alloc, 'disc': disc}
+
+                if ptype == 'fixed_discount':
+                    amount = promo['discount_amount'] or 0
+                    if amount <= 0:
+                        return None
+                    disc = amount * total_units
+                    if disc <= 0.01:
+                        return None
+                    return {'alloc': [(idx, rem, amount) for idx, _, rem in eligible], 'disc': disc}
+
+                return None
+
+            while True:
+                best = None
+                for promo in promotions:
+                    res = _compute_promo(promo)
+                    if res and (best is None or res['disc'] > best[1]):
+                        best = (res, res['disc'])
+                if best is None:
+                    break
+                res, _ = best
+                for idx, t, per in res['alloc']:
+                    line_discount[idx] += t * per
+                    consumed[idx] += t
+
+            for idx, item in enumerate(items):
+                item['discount'] = round(min(line_discount[idx], float(item.get('quantity') or 0) * float(item['unit_price'] or 0)), 2)
+                total_discount += item['discount']
 
             manual_discount = 0
             try:

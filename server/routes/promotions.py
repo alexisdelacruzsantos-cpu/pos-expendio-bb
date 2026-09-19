@@ -270,8 +270,8 @@ def get_active_promotions():
                 'fixed_price': promo['fixed_price'],
                 'discount_percent': promo['discount_percent'],
                 'discount_amount': promo['discount_amount'],
-                'product_ids': [int(x) for x in promo['product_ids'].split(',') if promo['product_ids'] and x],
-                'category_ids': [int(x) for x in promo['category_ids'].split(',') if promo['category_ids'] and x]
+                'product_ids': [int(x) for x in promo['product_ids'].split(',') if x] if promo['product_ids'] else [],
+                'category_ids': [int(x) for x in promo['category_ids'].split(',') if x] if promo['category_ids'] else []
             }
             result.append(promo_dict)
         
