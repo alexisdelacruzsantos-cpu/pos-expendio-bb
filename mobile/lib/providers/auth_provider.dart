@@ -40,7 +40,7 @@ class AuthProvider extends ChangeNotifier {
       _error = 'Credenciales inválidas';
       return false;
     } on ApiException catch (e) {
-      _error = 'Error de conexión con el servidor: ${e.message}';
+      _error = 'Error de conexión con el servidor: ${e.message} (${ApiService.baseUrl})';
       return false;
     } finally {
       _loading = false;

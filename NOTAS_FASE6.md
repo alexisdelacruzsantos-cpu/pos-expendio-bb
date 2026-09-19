@@ -24,6 +24,12 @@ stock/precios. La fase 7 (sincronización) no está empezada.
   - Tienda: `http://192.168.1.8:5000/api` (login admin/admin123)
   - Personalizado: cualquier URL
   - Se guarda en `SharedPreferences` (clave web `flutter.api_url`).
+- **Auto-detección de servidor (web):** si no hay `api_url` guardado, `ApiService.init()`
+  deriva el backend desde la URL de la página: si la app se abrió por IP/dominio de red
+  (ej. `http://192.168.1.10:8080`, host ≠ localhost), usa `http://<mismo-host>:5000/api`.
+  Así el celular entra directo sin configurar (en `localhost` mantiene el default).
+- **Errores de login:** el mensaje de error de conexión ahora incluye la URL del backend
+  que se intentó (ej. `...(http://localhost:5000/api)`) para diagnosticar rápido.
 - **Login:** `POST /api/auth/login` (username/password) → token JWT. La app lo persiste.
 
 ## Estructura del código (`mobile/`)

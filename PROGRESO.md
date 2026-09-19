@@ -3,16 +3,16 @@
 ## Información del Proyecto
 - **Nombre:** POS-EXPENDIO-BB (Expendio Bimbo y Barcel)
 - **Tipo:** Sistema de Punto de Venta
-- **Versión:** 1.1.32
+- **Versión:** 1.2.1
 - **Fecha inicio:** 01/09/2026
 
 ---
 
-## ESTADO ACTUAL: FASE 9 TERMINALES COMPLETADA + REPORTES SEMANALES + DESPLIEGUE EN TIENDA ✓
+## ESTADO ACTUAL: FASE 9 TERMINALES COMPLETADA + REPORTES SEMANALES + APP MÓVIL (FASE 6) + DESPLIEGUE EN TIENDA ✓
 
-> **Versión actual:** `1.1.32` (publicada en tienda)
-> **Despliegue en tienda:** servidor en `192.168.1.6:5000` (admin/admin123), actualizaciones web funcionando (`POST /api/updates/apply`). Ver `PROCESO_RELEASE.md`.
-> **Fecha:** 13/09/2026
+> **Versión actual:** `1.2.1` (último release en repo; la tienda se actualiza vía `POST /api/updates/apply`)
+> **Despliegue en tienda:** servidor en `192.168.1.6:5000` (admin/admin123), actualizaciones web funcionando. Ver `PROCESO_RELEASE.md`.
+> **Fecha:** 19/09/2026
 
 ### Lo que funciona hasta ahora:
 
@@ -33,6 +33,10 @@
 - Verificador de precios F9
 - Importación desde Excel, stock general + lote
 - Escaneo fluido con registro de productos nuevos
+- Promociones con alcance por producto específico
+- Ajustes de stock/precios con lote GENERAL + selectores de lote
+- Historial de movimientos con búsqueda y filtro por departamento
+- Endpoint `/api/auth/users` para autocompletado de usuario en login
 
 #### ✅ Frontend (PWA HTML/CSS/JS)
 - Página de login con autofocus
@@ -44,7 +48,10 @@
 - **Sidebar colapsable** con persistencia
 - **PWA icons** 192px/512px
 - Reloj superior con colores dinámicos
-- Soporte teclado completo: F12, F9, F2, +, -, Del, Ctrl+Del, ↑/↓, Enter, Esc
+- Soporte teclado completo: F12, F9, F2, F4, +, -, Del, Ctrl+Del, ↑/↓, Enter, Esc
+- Login con autocompletado de usuario (dropdown navegable con flechas)
+- Modo kiosko/pantalla completa bloqueada (ESC/F11 no salen), compatible Firefox `-kiosk`
+- Navegación con flechas/Enter y cierre con ESC en selector de precio/lote y modal de pago
 
 #### ✅ CSS
 - Layout POS responsive con sticky headers
@@ -59,7 +66,7 @@
 POS-EXPENDIO-BB/
 ├── server/
 │   ├── app.py                    # Servidor principal Flask
-│   ├── config.py                 # Configuración (APP_VERSION 1.1.32)
+│   ├── config.py                 # Configuración (APP_VERSION 1.2.1)
 │   ├── requirements.txt          # Dependencias
 │   ├── start_server.sh           # Script de arranque
 │   ├── routes/                   # API endpoints
@@ -111,13 +118,25 @@ POS-EXPENDIO-BB/
 
 ---
 
-## Cambios recientes (05/09 - 13/09/2026, ~40 releases v1.0.0 → v1.1.32)
+## Cambios recientes (05/09 - 19/09/2026, releases v1.0.0 → v1.2.1)
+
+### Releases 1.1.33 → 1.2.1 (ultimo avance)
+- **1.2.1 — Promociones:** solo alcance por producto específico, mostrar stock general y filtrar productos sin existencia.
+- **1.2.0 — Login:** autocompletado de usuario (endpoint `/api/auth/users` + dropdown navegable con flechas).
+- **1.1.55 — Ajustes:** guardar solo precio/costo sin stock, mostrar productos stock 0 en búsqueda, F4 limpia formulario, refresco de búsqueda tras ajuste.
+- **1.1.54/1.1.53 — Historial de movimientos:** búsqueda automática + filtro por departamento.
+- **1.1.49-1.1.52 — Ajustes lotes:** opción GENERAL para ver/modificar stock global, ocultar lotes con cantidad 0, desactivar filtro "solo con stock" en modo ajustes.
+- **1.1.48 — Seguridad:** vulnerabilidades corregidas para el rol cajero.
+- **1.1.42-1.1.47 — Kiosko/fullscreen:** pantalla completa automática y bloqueada (ESC no sale), modo Firefox `-kiosk`, atajos F2/F3/F4/F9/F10/F12 restaurados, navegación con flechas/Enter en selector de precio/lote y cierre con ESC sin salir del fullscreen.
+- **1.1.42 — Roles:** eliminar rol supervisor, mejorar edición de usuarios/contraseñas y matriz de permisos para cajeros.
+- **1.1.38-1.1.41 — Ajustes/Agregar inventario:** se elimina el módulo "Agregar inventario" (duplicado de Ajustes), atajo F4 abre Ajustes, motivo opcional, reconstrucción de estilos del overlay/quote y ticket.
+- **1.1.33-1.1.37 — Modal rápido:** limpiar pantalla tras guardar, Enter entre campos, stock actual destacado (más grande/negrita) y navegación izquierda/derecha para cambiar método de pago en F12.
 
 ### Backend
 - **Módulo de actualizaciones web** (`/api/updates/*`): check, apply, restart con systemd-aware, backup automático.
 - **Instalador Linux systemd** + Windows: arranque automático, reinicio, compatible con Win8.1.
 - **Bloqueo de turno** (`shift_required`) impide operaciones sin turno activo.
-- **Promociones**: 4 tipos (BOGO, fixed_price, percent, fixed_discount), bug `fixed_price` corregido.
+- **Promociones**: 4 tipos (BOGO, fixed_price, percent, fixed_discount), bug `fixed_price` corregido, alcance por producto específico.
 - **Terminales MP Point**: OAuth, vinculación, cobro durante venta, polling estado, detecta `processed/accredited`, recargo comisión, `print_on_terminal`, detalle de errores, cierre seguro.
 - **Verificador de precios F9** y **escaneo fluido** con registro de productos nuevos.
 
@@ -213,10 +232,10 @@ python app.py
 - Sirve para detectar errores: `ReferenceError`, `SyntaxError`, modales rotos, botones sin handler.
 
 ### Versión actual
-- `APP_VERSION = "1.1.32"` (server/config.py)
+- `APP_VERSION = "1.2.1"` (server/config.py)
 - Tienda: `192.168.1.6:5000` (admin/admin123)
 - SSH: `expendiobimbo@192.168.1.6`
 
 ---
 
-*Última actualización: 19/09/2026 - Fase 6 (app móvil Flutter) en curso: login, home, reportes, historial, productos y ajustes funcionando; fixes de CORS/trailing slash, parseo `category_color` y reporte por fecha única. Ver `NOTAS_FASE6.md`*
+*Última actualización: 19/09/2026 - Fase 6 (app móvil Flutter) en curso: login, home, reportes, historial, productos y ajustes funcionando; fixes de CORS/trailing slash, parseo `category_color` y reporte por fecha única. Último release del POS: v1.2.1 (promociones por producto + autocompletado login). Ver `NOTAS_FASE6.md`*

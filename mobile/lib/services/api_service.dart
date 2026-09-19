@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
@@ -22,12 +23,24 @@ class ApiService {
 
   String get token => _token ?? '';
 
+  static String _deriveBaseUrl() {
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
+        return 'http://$host:5000/api';
+      }
+    }
+    return _defaultBaseUrl;
+  }
+
   Future<bool> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
     final savedUrl = prefs.getString('api_url');
     if (savedUrl != null && savedUrl.trim().isNotEmpty) {
       baseUrl = savedUrl.trim();
+    } else {
+      baseUrl = _deriveBaseUrl();
     }
     return _token != null;
   }

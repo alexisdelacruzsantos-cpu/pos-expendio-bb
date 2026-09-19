@@ -4,8 +4,8 @@
 - **Nombre:** Pan Bimbo POS
 - **Tipo:** Sistema de Punto de Venta
 - **Negocio:** Expendio de pan bimbo y productos barcel/botanas
-- **Versión:** 1.1.32
-- **Fecha:** 13/09/2026
+- **Versión:** 1.2.1
+- **Fecha:** 19/09/2026
 
 ## Resumen
 Sistema POS completo con POS ligero para Windows 8.1 y app móvil Flutter.
