@@ -80,6 +80,15 @@ POS-EXPENDIO-BB/
 │   ├── static/                   # CSS, JS, iconos, data
 │   └── ...
 ├── venv/                         # Entorno virtual
+├── mobile/                       # App móvil Flutter (Fase 6)
+│   └── lib/
+│       ├── main.dart            # Entry point + AuthWrapper
+│       ├── providers/           # AuthProvider (sesión)
+│       ├── services/            # ApiService (HTTP + token + baseUrl)
+│       ├── models/              # Modelos de respuesta del API
+│       ├── screens/             # login, home, reportes, historial, productos, ajustes
+│       ├── widgets/             # server_selector (cambiar servidor)
+│       └── theme/               # Tema de la app
 ├── instalar_linux.sh             # Instalador Linux
 ├── instalador/                   # Instalador Windows
 └── docs/er_diagram.png           # Diagrama ER
@@ -96,7 +105,7 @@ POS-EXPENDIO-BB/
 - [x] **Fase 5:** Cortes de caja ← Completada 01/09/2026
 - [x] **Fase 9:** Terminales de pago Mercado Pago Point ← Completada 08/09/2026
 - [~] **Fase 8:** Reportes — en curso (tablas por día/departamento listas, faltan gráficas)
-- [ ] Fase 6: App móvil (Flutter) — no iniciada
+- [~] **Fase 6:** App móvil (Flutter) — en curso: login, home, reporte de ventas (fecha única), historial, productos y ajustes de inventario funcionando contra el POS. Falta sincronización (Fase 7) y APK para el celular. Ver `NOTAS_FASE6.md`.
 - [ ] Fase 7: Sincronización (Supabase) — no iniciada
 - [ ] Fase 10: Pruebas finales y documentación
 
@@ -136,7 +145,7 @@ POS-EXPENDIO-BB/
 - [ ] Implementar **gráficas de reportes** (charts tipo las imágenes de referencia).
 - [ ] **Re-imprimir último ticket** de venta (solo existe recibo de cierre de caja).
 - [ ] **Impresora térmica USB/Serial (escpos)** — no implementada.
-- [ ] **App móvil Flutter** (Fase 6) — no iniciada.
+- [ ] **App móvil Flutter** (Fase 6): probar contra la tienda `192.168.1.8` y generar APK Android para el celular. Siguiente fase: sincronización (Fase 7).
 - [ ] **Sincronización Supabase** (Fase 7) — no iniciada.
 - [ ] **Mejorar ticket modal**: método de pago, lote por producto, descuentos.
 
@@ -210,4 +219,4 @@ python app.py
 
 ---
 
-*Última actualización: 13/09/2026 - Reportes semanales por departamento (v1.1.32), terminales MP Point, actualizaciones web, ~40 releases*
+*Última actualización: 19/09/2026 - Fase 6 (app móvil Flutter) en curso: login, home, reportes, historial, productos y ajustes funcionando; fixes de CORS/trailing slash, parseo `category_color` y reporte por fecha única. Ver `NOTAS_FASE6.md`*

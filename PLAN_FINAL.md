@@ -56,7 +56,7 @@ Base de datos SQLite local con sincronización opcional vía Supabase.
 - [x] Fase 3: Sistema de ventas ← Completada 01/09/2026
 - [x] Fase 4: Control de caducidad ← Completada 01/09/2026
 - [x] Fase 5: Cortes de caja ← Completada 01/09/2026
-- [ ] Fase 6: App móvil (Flutter) — no iniciada
+- [~] Fase 6: App móvil (Flutter) — en curso: login, home, reporte de ventas (fecha única), historial, productos y ajustes funcionando. Ver `NOTAS_FASE6.md`.
 - [ ] Fase 7: Sincronización (Supabase) — no iniciada
 - [~] Fase 8: Reportes — en curso (tablas por día/departamento listas, faltan gráficas)
 - [x] Fase 9: Terminales de pago (Mercado Pago Point) ← Completada 08/09/2026

@@ -206,7 +206,7 @@ class Product {
   final String barcode;
   final int? categoryId;
   final String? categoryName;
-  final int? categoryColor;
+  final String? categoryColor;
   final double price;
   final double cost;
   final double? stock;
@@ -234,12 +234,215 @@ class Product {
       barcode: json['barcode'] as String? ?? '',
       categoryId: json['category_id'] as int?,
       categoryName: json['category_name'] as String?,
-      categoryColor: json['category_color'] as int?,
+      categoryColor: json['category_color'] as String?,
       price: (json['price'] as num?)?.toDouble() ?? 0,
       cost: (json['cost'] as num?)?.toDouble() ?? 0,
       stock: (json['stock'] as num?)?.toDouble(),
       effectiveStock: (json['effective_stock'] as num?)?.toDouble(),
       hasLots: json['has_lots'] == true,
+    );
+  }
+}
+
+class Sale {
+  final int id;
+  final String saleDate;
+  final double subtotal;
+  final double tax;
+  final double total;
+  final String paymentMethod;
+  final int? cashierId;
+  final String cashierName;
+  final String status;
+  final double amountTendered;
+  final double changeGiven;
+  final String? customerName;
+  final String? notes;
+  final int itemCount;
+  final double returnedAmount;
+
+  Sale({
+    required this.id,
+    required this.saleDate,
+    required this.subtotal,
+    required this.tax,
+    required this.total,
+    required this.paymentMethod,
+    this.cashierId,
+    required this.cashierName,
+    required this.status,
+    required this.amountTendered,
+    required this.changeGiven,
+    this.customerName,
+    this.notes,
+    required this.itemCount,
+    required this.returnedAmount,
+  });
+
+  factory Sale.fromJson(Map<String, dynamic> json) {
+    return Sale(
+      id: json['id'] as int,
+      saleDate: json['sale_date'] as String? ?? '',
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
+      tax: (json['tax'] as num?)?.toDouble() ?? 0,
+      total: (json['total'] as num?)?.toDouble() ?? 0,
+      paymentMethod: json['payment_method'] as String? ?? 'cash',
+      cashierId: json['cashier_id'] as int?,
+      cashierName: json['cashier_name'] as String? ?? '',
+      status: json['status'] as String? ?? 'active',
+      amountTendered: (json['amount_tendered'] as num?)?.toDouble() ?? 0,
+      changeGiven: (json['change_given'] as num?)?.toDouble() ?? 0,
+      customerName: json['customer_name'] as String?,
+      notes: json['notes'] as String?,
+      itemCount: (json['item_count'] as num?)?.toInt() ?? 0,
+      returnedAmount: (json['returned_amount'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+class SaleItem {
+  final int id;
+  final int? productId;
+  final int? lotId;
+  final double quantity;
+  final double unitPrice;
+  final double total;
+  final double discount;
+  final double returnedQuantity;
+  final double returnedAmount;
+  final String productName;
+  final String? barcode;
+  final String? batchNumber;
+  final String? expiryDate;
+
+  SaleItem({
+    required this.id,
+    this.productId,
+    this.lotId,
+    required this.quantity,
+    required this.unitPrice,
+    required this.total,
+    required this.discount,
+    required this.returnedQuantity,
+    required this.returnedAmount,
+    required this.productName,
+    this.barcode,
+    this.batchNumber,
+    this.expiryDate,
+  });
+
+  factory SaleItem.fromJson(Map<String, dynamic> json) {
+    return SaleItem(
+      id: json['id'] as int,
+      productId: json['product_id'] as int?,
+      lotId: json['lot_id'] as int?,
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 0,
+      unitPrice: (json['unit_price'] as num?)?.toDouble() ?? 0,
+      total: (json['total'] as num?)?.toDouble() ?? 0,
+      discount: (json['discount'] as num?)?.toDouble() ?? 0,
+      returnedQuantity: (json['returned_quantity'] as num?)?.toDouble() ?? 0,
+      returnedAmount: (json['returned_amount'] as num?)?.toDouble() ?? 0,
+      productName: json['product_name'] as String? ?? '',
+      barcode: json['barcode'] as String?,
+      batchNumber: json['batch_number'] as String?,
+      expiryDate: json['expiry_date'] as String?,
+    );
+  }
+}
+
+class SaleDetail {
+  final Sale sale;
+  final List<SaleItem> items;
+
+  SaleDetail({required this.sale, required this.items});
+
+  factory SaleDetail.fromJson(Map<String, dynamic> json) {
+    return SaleDetail(
+      sale: Sale.fromJson(json),
+      items: (json['items'] as List? ?? [])
+          .map((e) => SaleItem.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+class AdjustmentProduct {
+  final int id;
+  final String name;
+  final String barcode;
+  final String? categoryName;
+  final String? categoryColor;
+  final double price;
+  final double cost;
+  final double productStock;
+  final double effectiveStock;
+  final double lotsTotal;
+  final bool hasLots;
+  final List<AdjustmentLot> lots;
+
+  AdjustmentProduct({
+    required this.id,
+    required this.name,
+    required this.barcode,
+    this.categoryName,
+    this.categoryColor,
+    required this.price,
+    required this.cost,
+    required this.productStock,
+    required this.effectiveStock,
+    required this.lotsTotal,
+    required this.hasLots,
+    required this.lots,
+  });
+
+  factory AdjustmentProduct.fromJson(Map<String, dynamic> json) {
+    return AdjustmentProduct(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      barcode: json['barcode'] as String? ?? '',
+      categoryName: json['category_name'] as String?,
+      categoryColor: json['category_color'] as String?,
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      cost: (json['cost'] as num?)?.toDouble() ?? 0,
+      productStock: (json['product_stock'] as num?)?.toDouble() ?? 0,
+      effectiveStock: (json['effective_stock'] as num?)?.toDouble() ?? 0,
+      lotsTotal: (json['lots_total'] as num?)?.toDouble() ?? 0,
+      hasLots: json['has_lots'] == true,
+      lots: (json['lots'] as List? ?? [])
+          .map((e) => AdjustmentLot.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+class AdjustmentLot {
+  final int id;
+  final String batchNumber;
+  final double currentQuantity;
+  final String? expiryDate;
+  final double? salePrice;
+  final bool isExpired;
+  final int? daysLeft;
+
+  AdjustmentLot({
+    required this.id,
+    required this.batchNumber,
+    required this.currentQuantity,
+    this.expiryDate,
+    this.salePrice,
+    required this.isExpired,
+    this.daysLeft,
+  });
+
+  factory AdjustmentLot.fromJson(Map<String, dynamic> json) {
+    return AdjustmentLot(
+      id: json['id'] as int,
+      batchNumber: json['batch_number'] as String? ?? '',
+      currentQuantity: (json['current_quantity'] as num?)?.toDouble() ?? 0,
+      expiryDate: json['expiry_date'] as String?,
+      salePrice: (json['sale_price'] as num?)?.toDouble(),
+      isExpired: json['is_expired'] == true,
+      daysLeft: json['days_left'] as int?,
     );
   }
 }

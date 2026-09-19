@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
+import '../widgets/server_selector.dart';
 import 'reports_screen.dart';
 import 'products_screen.dart';
+import 'sales_history_screen.dart';
+import 'adjustments_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -14,6 +18,11 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('POS Expendio BB'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.dns_outlined),
+            tooltip: 'Servidor: ${ApiService.baseUrl}',
+            onPressed: () => showServerSelector(context),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
@@ -58,11 +67,25 @@ class HomeScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const ReportsScreen())),
           ),
           _DashboardCard(
+            icon: Icons.receipt_long_outlined,
+            title: 'Historial de Ventas',
+            subtitle: 'Consulta ventas, devoluciones y detalle',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SalesHistoryScreen())),
+          ),
+          _DashboardCard(
             icon: Icons.inventory_2_outlined,
             title: 'Productos',
             subtitle: 'Consulta catálogo, precios y stock',
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ProductsScreen())),
+          ),
+          _DashboardCard(
+            icon: Icons.tune,
+            title: 'Ajustes de Inventario',
+            subtitle: 'Corrige stock, precios y lotes',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AdjustmentsScreen())),
           ),
         ],
       ),

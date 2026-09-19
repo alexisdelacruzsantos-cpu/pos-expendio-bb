@@ -13,51 +13,38 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   final _api = ApiService();
   Future<SalesReport>? _future;
-  DateTime? _dateFrom;
-  DateTime? _dateTo;
+  late DateTime _date;
 
   @override
   void initState() {
     super.initState();
+    _date = DateTime.now();
     _load();
   }
 
   void _load() {
+    final day = DateFormat('yyyy-MM-dd').format(_date);
     setState(() {
       _future = _api.getSalesReport(
-        dateFrom: _dateFrom == null
-            ? null
-            : DateFormat('yyyy-MM-dd').format(_dateFrom!),
-        dateTo: _dateTo == null
-            ? null
-            : DateFormat('yyyy-MM-dd').format(_dateTo!),
+        dateFrom: day,
+        dateTo: day,
         limit: 10,
       );
     });
   }
 
-  Future<void> _pickRange() async {
+  Future<void> _pickDate() async {
     final now = DateTime.now();
-    final from = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
-      initialDate: _dateFrom ?? now,
+      initialDate: _date,
       firstDate: DateTime(now.year - 2),
       lastDate: now,
-      helpText: 'Fecha desde',
+      helpText: 'Selecciona la fecha',
     );
-    if (from == null) return;
-    if (!mounted) return;
-    final to = await showDatePicker(
-      context: context,
-      initialDate: _dateTo ?? now,
-      firstDate: from,
-      lastDate: now,
-      helpText: 'Fecha hasta',
-    );
-    if (to == null || !mounted) return;
+    if (picked == null || !mounted) return;
     setState(() {
-      _dateFrom = DateTime(from.year, from.month, from.day);
-      _dateTo = DateTime(to.year, to.month, to.day);
+      _date = DateTime(picked.year, picked.month, picked.day);
     });
     _load();
   }
@@ -69,12 +56,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         title: const Text('Reporte de Ventas'),
         actions: [
           TextButton.icon(
-            onPressed: _pickRange,
+            onPressed: _pickDate,
             icon: const Icon(Icons.date_range, color: Colors.white),
             label: Text(
-              _dateFrom == null
-                  ? 'Rango'
-                  : '${DateFormat('d/M').format(_dateFrom!)} - ${DateFormat('d/M').format(_dateTo!)}',
+              'Fecha: ${DateFormat('d/M/y').format(_date)}',
               style: const TextStyle(color: Colors.white),
             ),
           ),

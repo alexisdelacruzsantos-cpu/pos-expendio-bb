@@ -13,18 +13,34 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  static const String baseUrl = String.fromEnvironment(
+  static const String _defaultBaseUrl = String.fromEnvironment(
     'API_URL',
     defaultValue: 'http://localhost:5000/api',
   );
-  String? _token;
+  static String baseUrl = _defaultBaseUrl;
+  static String? _token;
 
   String get token => _token ?? '';
 
   Future<bool> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
+    final savedUrl = prefs.getString('api_url');
+    if (savedUrl != null && savedUrl.trim().isNotEmpty) {
+      baseUrl = savedUrl.trim();
+    }
     return _token != null;
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    final trimmed = url.trim();
+    baseUrl = trimmed.isEmpty ? _defaultBaseUrl : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    if (trimmed.isEmpty) {
+      await prefs.remove('api_url');
+    } else {
+      await prefs.setString('api_url', trimmed);
+    }
   }
 
   Map<String, String> _headers({bool json = false}) => {
@@ -115,5 +131,83 @@ class ApiService {
       throw ApiException(body['error'] ?? 'Error al obtener productos', response.statusCode);
     }
     return (body as List).map((e) => Product.fromJson(e)).toList();
+  }
+
+  Future<List<Sale>> getSalesHistory({
+    String? dateFrom,
+    String? dateTo,
+    String? q,
+    String? status,
+    int limit = 100,
+  }) async {
+    final query = <String, String>{
+      if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom,
+      if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo,
+      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      if (status != null && status.isNotEmpty) 'status': status,
+      'limit': '$limit',
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/sales/?${Uri(queryParameters: query).query}'),
+      headers: _headers(),
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw ApiException(body['error'] ?? 'Error al obtener el historial', response.statusCode);
+    }
+    return (body as List).map((e) => Sale.fromJson(e)).toList();
+  }
+
+  Future<SaleDetail> getSaleDetail(int saleId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/sales/$saleId'),
+      headers: _headers(),
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw ApiException(body['error'] ?? 'Error al obtener la venta', response.statusCode);
+    }
+    return SaleDetail.fromJson(body);
+  }
+
+  Future<AdjustmentProduct> getAdjustmentProduct(int productId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/adjustments/product/$productId'),
+      headers: _headers(),
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw ApiException(body['error'] ?? 'Error al obtener el producto', response.statusCode);
+    }
+    return AdjustmentProduct.fromJson(body);
+  }
+
+  Future<void> applyAdjustment({
+    required int productId,
+    int? lotId,
+    double? newQuantity,
+    double? newPrice,
+    double? newCost,
+    double? newLotPrice,
+    String? reason,
+  }) async {
+    final payload = <String, dynamic>{
+      'product_id': productId,
+      if (lotId != null) 'lot_id': lotId,
+      if (newQuantity != null) 'new_quantity': newQuantity,
+      if (newPrice != null) 'new_price': newPrice,
+      if (newCost != null) 'new_cost': newCost,
+      if (newLotPrice != null) 'new_lot_price': newLotPrice,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    };
+    final response = await http.post(
+      Uri.parse('$baseUrl/adjustments/'),
+      headers: _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw ApiException(body['error'] ?? 'Error al guardar el ajuste', response.statusCode);
+    }
   }
 }
