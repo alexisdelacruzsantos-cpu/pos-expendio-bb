@@ -154,7 +154,8 @@ class ProductAdjustmentScreen extends StatefulWidget {
 class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
   final _api = ApiService();
 
-  final _cantidadCtrl = TextEditingController();
+  final _adjustmentCtrl = TextEditingController();
+  final _newQtyCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _costCtrl = TextEditingController();
   final _lotPriceCtrl = TextEditingController();
@@ -165,6 +166,9 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
   String? _error;
   bool _saving = false;
   int _selectedLotId = 0;
+  String _adjWarning = '';
+
+  static final _adjPattern = RegExp(r'^([+-]?)(\d+(?:\.\d+)?)$');
 
   @override
   void initState() {
@@ -174,7 +178,8 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
 
   @override
   void dispose() {
-    _cantidadCtrl.dispose();
+    _adjustmentCtrl.dispose();
+    _newQtyCtrl.dispose();
     _priceCtrl.dispose();
     _costCtrl.dispose();
     _lotPriceCtrl.dispose();
@@ -207,9 +212,11 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
   void _fieldsFromProduct(AdjustmentProduct p) {
     _priceCtrl.text = _fmtNum(p.price);
     _costCtrl.text = _fmtNum(p.cost);
-    _cantidadCtrl.text = '';
+    _adjustmentCtrl.text = '';
+    _newQtyCtrl.text = '';
     _lotPriceCtrl.text = '';
     _reasonCtrl.clear();
+    _adjWarning = '';
     _selectedLotId = 0;
   }
 
@@ -218,6 +225,54 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
       return v.toInt().toString();
     }
     return v.toStringAsFixed(2);
+  }
+
+  String _fmtQty(double v) {
+    if (v == v.roundToDouble()) {
+      return v.toInt().toString();
+    }
+    return v.toStringAsFixed(2);
+  }
+
+  double get _currentTarget {
+    final lots = _product?.lots.where((l) => l.id != 0).toList() ?? [];
+    final selectedLot = _selectedLot(lots, _selectedLotId);
+    return selectedLot == null
+        ? (_product?.productStock ?? 0)
+        : selectedLot.currentQuantity;
+  }
+
+  void _onAdjustmentInput(String raw) {
+    final text = raw.trim();
+    final match = _adjPattern.firstMatch(text);
+    if (match != null) {
+      final sign = match.group(1) == '-' ? -1.0 : 1.0;
+      final amount = double.parse(match.group(2)!);
+      final adjustment = sign * amount;
+      var next = _currentTarget + adjustment;
+      if (next < 0) next = 0;
+      _newQtyCtrl.text = _fmtQty(next);
+      setState(() {
+        _adjWarning = (next == 0 && adjustment < 0)
+            ? 'El stock no puede ser negativo. Se ajustará a 0.'
+            : '';
+      });
+    } else if (text.isNotEmpty) {
+      _newQtyCtrl.text = '';
+      setState(() => _adjWarning =
+          'Ingresa una cantidad válida para el ajuste (sin signo = sumar).');
+    } else {
+      _newQtyCtrl.text = '';
+      setState(() => _adjWarning = '');
+    }
+  }
+
+  void _onNewQtyInput(String raw) {
+    final newQty = double.tryParse(raw.trim().replaceAll(',', '.'));
+    if (newQty == null) return;
+    final diff = newQty - _currentTarget;
+    _adjustmentCtrl.text = diff >= 0 ? '+${_fmtQty(diff)}' : _fmtQty(diff);
+    setState(() => _adjWarning = '');
   }
 
   double? _parseAmount(String raw) {
@@ -234,14 +289,35 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
     final targetQuantity =
         selectedLot == null ? p.productStock : selectedLot.currentQuantity;
 
-    final newQuantity = _parseAmount(_cantidadCtrl.text);
-    if (_cantidadCtrl.text.trim().isNotEmpty && newQuantity == null) {
-      _snack('Cantidad inválida', isError: true);
+    double? adjustment;
+    final adjustRaw = _adjustmentCtrl.text.trim();
+    if (adjustRaw.isNotEmpty) {
+      final match = _adjPattern.firstMatch(adjustRaw);
+      if (match == null) {
+        _snack('Ingresa un ajuste válido (+/- cantidad)', isError: true);
+        return;
+      }
+      final sign = match.group(1) == '-' ? -1.0 : 1.0;
+      adjustment = sign * double.parse(match.group(2)!);
+    }
+    if (adjustment != null && !adjustment.isFinite) {
+      _snack('Ingresa un ajuste válido (+/- cantidad)', isError: true);
       return;
     }
-    if (newQuantity != null && newQuantity < 0) {
-      _snack('La cantidad no puede ser negativa', isError: true);
-      return;
+
+    double? newQuantity;
+    final newQtyRaw = _newQtyCtrl.text.trim();
+    if (newQtyRaw.isNotEmpty) {
+      newQuantity = _parseAmount(newQtyRaw);
+      if (newQuantity == null) {
+        _snack('Cantidad inválida', isError: true);
+        return;
+      }
+      if (newQuantity < 0) {
+        _snack('La cantidad no puede ser negativa', isError: true);
+        return;
+      }
+      adjustment ??= newQuantity - targetQuantity;
     }
 
     final newPrice = _parseAmount(_priceCtrl.text);
@@ -280,7 +356,8 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
     final priceChanged = newPrice != null && newPrice != p.price;
     final costChanged = newCost != null && newCost != p.cost;
     final stockChanged =
-        newQuantity != null && newQuantity != targetQuantity;
+        (newQuantity != null && newQuantity != targetQuantity) ||
+            (adjustment != null && adjustment != 0);
     final lotPriceChanged = newLotPrice != null &&
         newLotPrice != (selectedLot?.salePrice ?? 0);
 
@@ -293,7 +370,8 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
     try {
       await _api.applyAdjustment(
         productId: p.id,
-        lotId: selectedLot != null ? selectedLot.id : null,
+        lotId: selectedLot?.id,
+        adjustment: stockChanged ? adjustment : null,
         newQuantity: stockChanged ? newQuantity : null,
         newPrice: priceChanged ? newPrice : null,
         newCost: costChanged ? newCost : null,
@@ -429,28 +507,57 @@ class _ProductAdjustmentScreenState extends State<ProductAdjustmentScreen> {
                         : (v) {
                             setState(() {
                               _selectedLotId = v ?? 0;
-                              _cantidadCtrl.text = '';
+                              _adjustmentCtrl.text = '';
+                              _newQtyCtrl.text = '';
                               _lotPriceCtrl.text = '';
+                              _adjWarning = '';
                             });
                           },
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _cantidadCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  controller: _adjustmentCtrl,
+                  textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: selectedLot == null
-                        ? 'Nueva cantidad (general)'
-                        : 'Nueva cantidad del lote',
-                    helperText: 'Vacío = sin cambio',
-                    prefixIcon: const Icon(Icons.inventory_2_outlined),
+                    labelText: 'Parámetro de ajuste',
+                    hintText: 'Ej: +5 o -3 (sin signo = sumar)',
+                    helperText:
+                        'Cantidad actual: ${_fmtQty(_currentTarget)}',
+                    prefixIcon: const Icon(Icons.exposure),
                     filled: true,
                     fillColor: Colors.white,
                     isDense: true,
                   ),
+                  onChanged: _onAdjustmentInput,
                 ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _newQtyCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Nueva cantidad (calculada)',
+                    prefixIcon: Icon(Icons.calculate_outlined),
+                    filled: true,
+                    fillColor: Colors.white,
+                    isDense: true,
+                  ),
+                  onChanged: _onNewQtyInput,
+                ),
+                if (_adjWarning.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _adjWarning,
+                      style: TextStyle(
+                        color: _adjWarning.contains('negativo')
+                            ? Colors.orange[800]
+                            : Colors.red[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 if (selectedLot != null && selectedLot.salePrice != null) ...[
                   const SizedBox(height: 12),
                   TextField(

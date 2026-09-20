@@ -3118,7 +3118,7 @@ async function loadInventoryReport() {
         let value = 0, skus = 0;
         const catBody = document.getElementById('rpValueByCatBody');
         if (!byCat || !byCat.length) {
-            catBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Sin datos</td></tr>';
+            catBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">Sin datos</td></tr>';
         } else {
             catBody.innerHTML = byCat.map(c => {
                 value += Number(c.value || 0);
@@ -3129,6 +3129,7 @@ async function loadInventoryReport() {
                     <td>${c.product_count}</td>
                     <td>${Number(c.total_units || 0).toFixed(0)}</td>
                     <td>$${Number(c.value || 0).toFixed(2)}</td>
+                    <td>$${Number(c.profit || 0).toFixed(2)}</td>
                 </tr>`;
             }).join('');
         }

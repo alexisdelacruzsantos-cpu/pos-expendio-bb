@@ -14,6 +14,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   final _api = ApiService();
   Future<SalesReport>? _future;
   late DateTime _date;
+  String? _department;
+  List<String> _departments = [];
 
   @override
   void initState() {
@@ -29,8 +31,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
         dateFrom: day,
         dateTo: day,
         limit: 10,
-      );
+        department: _department,
+      ).then((report) {
+        if (_department == null) {
+          _departments =
+              report.byDepartment.map((d) => d.department).toList();
+        }
+        return report;
+      });
     });
+  }
+
+  void _selectDepartment(String? dept) {
+    setState(() => _department = dept);
+    _load();
   }
 
   Future<void> _pickDate() async {
@@ -85,6 +99,36 @@ class _ReportsScreenState extends State<ReportsScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(12),
               children: [
+                if (_departments.isNotEmpty)
+                  Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: _department,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Departamento',
+                          prefixIcon: Icon(Icons.category_outlined),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Todos los departamentos'),
+                          ),
+                          ..._departments
+                              .map((d) => DropdownMenuItem<String?>(
+                                    value: d,
+                                    child:
+                                        Text(d, overflow: TextOverflow.ellipsis),
+                                  ))
+                              .toList(),
+                        ],
+                        onChanged: _selectDepartment,
+                      ),
+                    ),
+                  ),
                 Row(
                   children: [
                     _MetricCard(
@@ -140,6 +184,55 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 subtitle: Text('${p.quantity} uds'),
                                 trailing: Text(_money(p.revenue),
                                     style: const TextStyle(fontWeight: FontWeight.w600)),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                if (report.byDepartment.isNotEmpty)
+                  _SectionCard(
+                    title: _department == null
+                        ? 'Por departamento (toca para filtrar)'
+                        : 'Ventas de $_department',
+                    child: Column(
+                      children: report.byDepartment
+                          .map((d) => InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => _selectDepartment(d.department),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 8, horizontal: 4),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              d.department,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600),
+                                            ),
+                                          ),
+                                          Text(
+                                            _money(d.revenue),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${d.sales} ventas · ${d.units} uds · utilidad ${_money(d.profit)}',
+                                        style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ))
                           .toList(),
                     ),

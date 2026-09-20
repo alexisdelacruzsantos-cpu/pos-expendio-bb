@@ -133,11 +133,12 @@ class ApiService {
     await prefs.remove('auth_token');
   }
 
-  Future<SalesReport> getSalesReport({String? dateFrom, String? dateTo, int limit = 10}) async {
+  Future<SalesReport> getSalesReport({String? dateFrom, String? dateTo, int limit = 10, String? department}) async {
     final query = <String, String>{
       if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom,
       if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo,
       'limit': '$limit',
+      if (department != null && department.isNotEmpty) 'department': department,
     };
     final response = await http.get(
       Uri.parse('$baseUrl/reports/sales?${Uri(queryParameters: query).query}'),
@@ -217,6 +218,7 @@ class ApiService {
   Future<void> applyAdjustment({
     required int productId,
     int? lotId,
+    double? adjustment,
     double? newQuantity,
     double? newPrice,
     double? newCost,
@@ -226,6 +228,7 @@ class ApiService {
     final payload = <String, dynamic>{
       'product_id': productId,
       if (lotId != null) 'lot_id': lotId,
+      if (adjustment != null) 'adjustment': adjustment,
       if (newQuantity != null) 'new_quantity': newQuantity,
       if (newPrice != null) 'new_price': newPrice,
       if (newCost != null) 'new_cost': newCost,

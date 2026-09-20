@@ -279,10 +279,12 @@ def value_by_category():
             SELECT COALESCE(c.name, 'Sin categoría') as category_name,
                    COALESCE(sub.category_id, 0) as category_id,
                    COALESCE(SUM(sub.effective_stock * sub.cost), 0) as value,
+                   COALESCE(SUM(sub.effective_stock * (sub.price - sub.cost)), 0) as profit,
                    COUNT(sub.id) as product_count,
                    COALESCE(SUM(sub.effective_stock), 0) as total_units
             FROM (
                 SELECT p.id, p.category_id, COALESCE(p.cost, 0) as cost,
+                       COALESCE(p.price, 0) as price,
                        (COALESCE(SUM(l.current_quantity), 0) + COALESCE(p.stock, 0)) as effective_stock
                 FROM products p
                 LEFT JOIN lots l ON p.id = l.product_id AND l.current_quantity > 0
@@ -375,6 +377,18 @@ def sales_report():
         if date_to:
             where += ' AND DATE(sale_date) <= ?'
             params.append(date_to)
+
+        department = request.args.get('department')
+        if department and department.strip():
+            department = department.strip()
+            where += '''
+                AND EXISTS (SELECT 1 FROM sale_items si_d
+                            JOIN products p_d ON si_d.product_id = p_d.id
+                            LEFT JOIN categories c_d ON p_d.category_id = c_d.id
+                            WHERE si_d.sale_id = s.id
+                              AND COALESCE(c_d.name, 'Sin categoría') = ?)
+            '''
+            params.append(department)
 
         summary = db.fetch_one(f'''
             SELECT COUNT(*) as sales,
