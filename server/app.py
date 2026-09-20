@@ -172,6 +172,13 @@ def serve_static(path):
 def catch_all(path):
     if _is_sensitive_static(path):
         return jsonify({"error": "Archivo no disponible"}), 403
+    # En el HOST solo se expone la app móvil (/movil/); el SPA del POS no.
+    if POS_HOST:
+        stripped = path.lstrip('/')
+        if stripped == 'movil':
+            return redirect('/movil/')
+        if not stripped.startswith('movil/'):
+            return redirect("/movil/")
     if '.' not in path:
         return render_template('dashboard.html')
     resp = send_from_directory(os.path.join(os.path.dirname(__file__), 'static'), path)
@@ -250,6 +257,9 @@ def index():
 # Ruta del dashboard
 @app.route('/dashboard')
 def dashboard():
+    # En el HOST no se expone el POS web, solo la app móvil en /movil/.
+    if POS_HOST:
+        return redirect("/movil/")
     return render_template('dashboard.html')
 
 
