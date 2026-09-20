@@ -302,7 +302,9 @@ https://<usuario>.pythonanywhere.com/api/sync/ping     → {"ok":true,"readonly"
 ```
 
 ### 9.7 Subir la app web Flutter
-- Local: `cd mobile && flutter build web --release` y comprimir:
+- Local: `cd mobile && flutter build web --release --base-href=/movil/`
+  (**`--base-href=/movil/` OBLIGATORIO**: sin él el `index.html` carga los
+  assets desde `/` y la app se ve en blanco) y comprimir:
   `cd build && zip -r web.zip web` (≈14 MB, ya generado en
   `/home/alexis/POS-EXPENDIO-BB/mobile/build/web.zip`).
 - **Files → Upload** subir `web.zip` al home del sitio; en la consola:

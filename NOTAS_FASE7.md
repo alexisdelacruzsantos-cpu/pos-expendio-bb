@@ -119,8 +119,10 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 En tu máquina de desarrollo (donde está Flutter):
 ```bash
 export PATH="/home/alexis/.flutter-sdk/bin:$PATH"
-cd mobile && flutter build web --release
+cd mobile && flutter build web --release --base-href=/movil/
 ```
+> ⚠️ El `--base-href=/movil/` es obligatorio: sin él la app se sirve en
+> `/movil/` pero pide los assets en `/` → pantalla en blanco.
 Comprimir y subir `mobile/build/web` al sitio (Files → Upload de un zip, y en la
 consola `unzip`; o arrastrar la carpeta). Debe quedar en:
 `/home/<usuario>/pos-expendio-bb/mobile/build/web/`.
