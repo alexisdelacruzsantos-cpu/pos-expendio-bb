@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 const kServerPresets = <String, String>{
+  'Tienda (192.168.1.8)': kStoreBaseUrl,
+  'Nube (PythonAnywhere)': kCloudBaseUrl,
   'Local (pruebas)': 'http://localhost:5000/api',
-  'Tienda (192.168.1.8)': 'http://192.168.1.8:5000/api',
 };
 
 /// Muestra el selector de servidor y guarda la selección en

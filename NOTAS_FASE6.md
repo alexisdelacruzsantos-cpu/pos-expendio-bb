@@ -20,10 +20,15 @@ stock/precios. La fase 7 (sincronización) no está empezada.
 - **CORS:** el backend (Flask) permite `*` en `/api/*`. El navegador en la versión web de
   la app (servida en `http://localhost:8080`) valida el preflight OPTIONS del servidor.
 - **Servidores de prueba** (selector dentro de la app, ver `widgets/server_selector.dart`):
+  - Tienda (default en el APK): `http://192.168.1.8:5000/api`
+  - Nube (PythonAnywhere, solo lectura): `https://alexis10265.pythonanywhere.com/api`
   - Local: `http://localhost:5000/api`
-  - Tienda: `http://192.168.1.8:5000/api` (login admin/admin123)
   - Personalizado: cualquier URL
   - Se guarda en `SharedPreferences` (clave web `flutter.api_url`).
+  - **Default por plataforma:** en el celular/APK (`kIsWeb == false`) la app
+    arranca apuntando a la **tienda** (`kStoreBaseUrl`); en web se auto-deriva
+    (mismo origen en la nube, IP de la LAN en pruebas). Se puede compilar con
+    `--dart-define=API_URL=...` para forzar otra URL.
 - **Auto-detección de servidor (web):** si no hay `api_url` guardado, `ApiService.init()`
   deriva el backend desde la URL de la página: si la app se abrió por IP/dominio de red
   (ej. `http://192.168.1.10:8080`, host ≠ localhost), usa `http://<mismo-host>:5000/api`.

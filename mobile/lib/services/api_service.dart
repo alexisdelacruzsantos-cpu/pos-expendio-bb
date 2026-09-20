@@ -4,6 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 
+/// Servidor de la tienda (LAN). Default en el APK: al arrancar sin URL guardada
+/// la app apunta aquí para que el celular consulte el POS de la tienda.
+const String kStoreBaseUrl = 'http://192.168.1.8:5000/api';
+
+/// Espejo en la nube (solo lectura). Se usa cuando se está fuera de la red de
+/// la tienda y el POS ya sincroniza a PythonAnywhere.
+const String kCloudBaseUrl = 'https://alexis10265.pythonanywhere.com/api';
+
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -20,6 +28,14 @@ class ApiService {
   );
   static String baseUrl = _defaultBaseUrl;
   static String? _token;
+
+  /// URL por defecto según la plataforma: en el APK/celular la tienda; en web
+  /// lo que derive de la página (o el env `API_URL` si se compiló con él).
+  static String _defaultForPlatform() {
+    const env = String.fromEnvironment('API_URL');
+    if (env.isNotEmpty) return env;
+    return kIsWeb ? _defaultBaseUrl : kStoreBaseUrl;
+  }
 
   String get token => _token ?? '';
 
@@ -58,15 +74,17 @@ class ApiService {
     final savedUrl = prefs.getString('api_url');
     if (savedUrl != null && savedUrl.trim().isNotEmpty) {
       baseUrl = savedUrl.trim();
-    } else {
+    } else if (kIsWeb) {
       baseUrl = _deriveBaseUrl();
+    } else {
+      baseUrl = _defaultForPlatform();
     }
     return _token != null;
   }
 
   static Future<void> setBaseUrl(String url) async {
     final trimmed = url.trim();
-    baseUrl = trimmed.isEmpty ? _defaultBaseUrl : trimmed;
+    baseUrl = trimmed.isEmpty ? _defaultForPlatform() : trimmed;
     final prefs = await SharedPreferences.getInstance();
     if (trimmed.isEmpty) {
       await prefs.remove('api_url');
