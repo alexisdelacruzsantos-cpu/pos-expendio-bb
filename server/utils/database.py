@@ -52,6 +52,20 @@ class Database:
             with self.transaction():
                 yield
 
+    def reset_connection(self):
+        """Cierra la conexión cacheada y fuerza una re-apertura en la próxima
+        consulta. Necesario tras reemplazar pos.db (host /api/sync/db): la
+        conexión vieja seguiría leyendo el inode del archivo anterior."""
+        if self.conn is not None:
+            try:
+                if self._in_transaction:
+                    self.conn.rollback()
+                    self._in_transaction = False
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = None
+
     def checkpoint(self):
         """Compacta el WAL en la base principal (recomendado en apagados limpios)."""
         try:

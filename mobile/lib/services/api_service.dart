@@ -27,10 +27,29 @@ class ApiService {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
+        final scheme = Uri.base.scheme;
+        final port = Uri.base.hasPort ? Uri.base.port : (scheme == 'https' ? 443 : 80);
+        // En la nube (https / puerto web) la API vive en el MISMO origen (/api),
+        // p.ej. la app en https://cuenta.pythonanywhere.com/movil/ consulta
+        // https://cuenta.pythonanywhere.com/api sin configuración manual.
+        if (scheme == 'https' || (scheme == 'http' && (port == 80 || port == 443))) {
+          return '$scheme://$host/api';
+        }
+        // Pruebas LAN: app servida en 8080, backend de la tienda en :5000.
         return 'http://$host:5000/api';
       }
     }
     return _defaultBaseUrl;
+  }
+
+  /// True cuando [baseUrl] apunta a un host remoto de nube (https/http web),
+  /// no a la tienda local. En ese modo la app es de SOLO LECTURA.
+  static bool isCloudMode() {
+    final u = Uri.tryParse(baseUrl);
+    if (u == null) return false;
+    final host = u.host;
+    if (host.isEmpty || host == 'localhost' || host == '127.0.0.1') return false;
+    return u.scheme == 'https' || u.port == 80 || u.port == 443;
   }
 
   Future<bool> init() async {

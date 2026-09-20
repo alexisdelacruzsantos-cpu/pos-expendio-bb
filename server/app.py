@@ -4,7 +4,7 @@ POS EXPENDIO BB - Servidor Principal
 Sistema de Punto de Venta para Expendio de Pan Bimbo y Productos Barcel
 """
 
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request, render_template, send_from_directory, redirect
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 import os
@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 # Importar utilidades internas
 from utils.database import Database
 from utils.security import Security
-from config import get_db_path
+from config import get_db_path, POS_READONLY, POS_HOST
 
 # Crear la aplicación Flask
 app = Flask(__name__,
@@ -64,6 +64,11 @@ app.config['DB_PATH'] = db_path
 db = Database(app.config['DB_PATH'])
 db.init_db()
 
+# Referencia compartida a la instancia de BD (el receptor de sync la necesita
+# para reconectar tras reemplazar pos.db en el host).
+app.config['DB'] = db
+app.config['POS_READONLY'] = POS_READONLY
+
 # Importar y registrar rutas
 from routes.auth import auth_bp
 from routes.products import products_bp
@@ -78,6 +83,7 @@ from routes.adjustments import adjustments_bp
 from routes.maintenance import maintenance_bp
 from routes.updates import updates_bp
 from routes.point import point_bp
+from routes.sync import sync_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -92,6 +98,7 @@ app.register_blueprint(adjustments_bp, url_prefix='/api/adjustments')
 app.register_blueprint(maintenance_bp, url_prefix='/api/maintenance')
 app.register_blueprint(updates_bp, url_prefix='/api/updates')
 app.register_blueprint(point_bp, url_prefix='/api/mp')
+app.register_blueprint(sync_bp, url_prefix='/api/sync')
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +128,31 @@ def _block_sensitive_paths():
     if _is_sensitive_static(request.path):
         return jsonify({"error": "Archivo no disponible"}), 403
     return None
+
+
+# ---------------------------------------------------------------------------
+# Modo HOST (espejo de solo lectura, Fase 7)
+# Con POS_READONLY=1 el backend acepta lecturas (GET/OPTIONS) y un puñado de
+# POST mínimos (login, validación de token y el push de la BD). Todo lo demás
+# que escriba devuelve 403: así nada puede alterar el espejo desde fuera.
+# ---------------------------------------------------------------------------
+_READONLY_FRONT = (
+    '/api/sync/ping',
+    '/api/sync/db',
+    '/api/auth/login',
+    '/api/auth/validate',
+)
+
+
+@app.before_request
+def _readonly_enforce():
+    if not app.config.get('POS_READONLY'):
+        return None
+    if request.method in ('GET', 'OPTIONS'):
+        return None
+    if request.path in _READONLY_FRONT:
+        return None
+    return jsonify({"error": "El host es de solo lectura. Los cambios se hacen en la tienda."}), 403
 
 
 _NO_CACHE = {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'}
@@ -209,6 +241,9 @@ signal.signal(signal.SIGINT, _graceful_shutdown)
 # Ruta principal - Sirve la PWA
 @app.route('/')
 def index():
+    # En el host, la raíz lleva a la app móvil (Flutter web en /movil/).
+    if POS_HOST:
+        return redirect("/movil/")
     return render_template('index.html')
 
 
@@ -249,6 +284,14 @@ if __name__ == '__main__':
 
     # Respaldo automático al arrancar (diferido 5 min para no colgar la apertura) y luego cada 24h
     threading.Timer(5 * 60, _autobackup).start()
+
+    # Sincronización hacia el host espejo (Fase 7). Solo en la tienda: el host
+    # no debe subirse nada a sí mismo.
+    try:
+        from utils.sync_push import start_sync_thread
+        start_sync_thread()
+    except Exception as e:
+        print(f"Sync thread error: {e}")
 
     port = int(os.environ.get('PORT', '5000'))
     host = os.environ.get('HOST', '0.0.0.0')

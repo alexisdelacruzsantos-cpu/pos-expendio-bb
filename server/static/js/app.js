@@ -7363,6 +7363,7 @@ const SETTINGS_MODULES = [
     { key: 'resetstock', icon: '📦', title: 'Poner stock en 0', desc: 'Limpia el stock general de todos los productos' },
     { key: 'purgecatalog', icon: '🗑', title: 'Vaciar catálogo', desc: 'Elimina productos y categorías para reimportar' },
     { key: 'updates', icon: '🔄', title: 'Actualizaciones', desc: 'Busca e instala la última versión desde GitHub' },
+    { key: 'sync', icon: '☁️', title: 'Sincronización', desc: 'Sube una copia de lectura a la nube para el celular' },
     // Módulos futuros: agrega un bloque como los anteriores
     // { key: 'backup',   icon: '💾', title: 'Respaldo',   desc: 'Backup y restauración de la base de datos' },
     // { key: 'printer',  icon: '🖨', title: 'Impresora',  desc: 'Configuración de tickets e impresión' },
@@ -7431,6 +7432,9 @@ function showSettingsTab(tab) {
             break;
         case 'updates':
             loadUpdatesSettings();
+            break;
+        case 'sync':
+            loadSyncSettings();
             break;
     }
 }
@@ -8038,6 +8042,107 @@ function applyUpdates() {
             }
         }
     });
+}
+
+// Sincronización a la nube (Fase 7)
+async function loadSyncSettings() {
+    const content = document.getElementById('settingsContent');
+    if (!content) return;
+    let s = {
+        sync_enabled: '0', sync_host: '', sync_token: '',
+        sync_interval: '300', sync_last_ok: '', sync_last_attempt: '',
+        sync_last_error: '', sync_last_msg: ''
+    };
+    try {
+        const data = await apiCall('/settings/sync');
+        s = Object.assign(s, data || {});
+    } catch (_) {}
+    const enabled = String(s.sync_enabled) === '1' || ['true', 'yes', 'on'].includes(String(s.sync_enabled).toLowerCase());
+    content.innerHTML = `
+        ${settingsBackBar()}
+        <div class="section-header">
+            <h3>☁️ Sincronización a la nube</h3>
+        </div>
+        <div class="maintenance-card">
+            <p class="maintenance-desc">Sube automáticamente una <strong>copia de solo lectura</strong> de tu base de datos a un host gratuito (ej. PythonAnywhere). Así puedes consultar reportes, historial y productos desde el celular sin estar en la red de la tienda.</p>
+            <p class="maintenance-note">El host es solo lectura: las ventas y los ajustes de inventario se siguen haciendo aquí en la tienda.</p>
+
+            <label class="settings-label-sync">
+                <input type="checkbox" id="syncEnabled" ${enabled ? 'checked' : ''} onchange="saveSyncSettings()">
+                <span>Activar sincronización automática</span>
+            </label>
+
+            <div class="settings-field">
+                <label>URL del host (ej. https://tucuenta.pythonanywhere.com)</label>
+                <input type="text" id="syncHost" placeholder="https://tucuenta.pythonanywhere.com" value="${escapeHtml(s.sync_host || '')}" autocomplete="off" autocorrect="off" spellcheck="false">
+            </div>
+            <div class="settings-field">
+                <label>Token de sincronización</label>
+                <input type="password" id="syncToken" value="${escapeHtml(s.sync_token || '')}" autocomplete="new-password">
+            </div>
+            <div class="settings-field">
+                <label>Intervalo de subida (segundos, mínimo 60)</label>
+                <input type="number" id="syncInterval" min="60" step="30" value="${escapeHtml(String(s.sync_interval || '300'))}">
+            </div>
+            <div class="settings-actions">
+                <button class="btn btn-primary maintenance-btn" onclick="saveSyncSettings()">💾 Guardar configuración</button>
+                <button class="btn btn-secondary maintenance-btn" onclick="syncNow()">☁️ Sincronizar ahora</button>
+            </div>
+            <div id="syncResult"></div>
+            <div class="sync-status">
+                <p><strong>Última subida exitosa:</strong> ${escapeHtml(s.sync_last_ok || '—')}</p>
+                <p><strong>Último intento:</strong> ${escapeHtml(s.sync_last_attempt || '—')}</p>
+                <p><strong>Último resultado:</strong> ${escapeHtml(s.sync_last_msg || '—')}</p>
+                <p><strong>Último error:</strong> ${escapeHtml(s.sync_last_error || '—')}</p>
+            </div>
+        </div>
+    `;
+}
+
+async function saveSyncSettings() {
+    const host = (document.getElementById('syncHost')?.value || '').trim();
+    const token = (document.getElementById('syncToken')?.value || '').trim();
+    const interval = Number(document.getElementById('syncInterval')?.value || 300);
+    const enabledInput = document.getElementById('syncEnabled');
+    const enabled = enabledInput ? enabledInput.checked : false;
+
+    if (host && !/^https?:\/\//i.test(host)) {
+        showToast('La URL del host debe comenzar con http(s)://', 'error');
+        return;
+    }
+
+    const result = document.getElementById('syncResult');
+    if (result) result.innerHTML = '<p class="maintenance-note">Guardando…</p>';
+    try {
+        const res = await apiCall('/settings/sync', 'POST', {
+            sync_host: host,
+            sync_token: token,
+            sync_interval: interval,
+            sync_enabled: enabled
+        });
+        if (result) result.innerHTML = '<p class="update-note">✅ Configuración guardada.</p>';
+        showToast('Configuración de sincronización guardada', 'success');
+        await loadSyncSettings();
+    } catch (error) {
+        if (result) result.innerHTML = `<p class="update-error">⚠️ ${escapeHtml(error.message)}</p>`;
+        showToast('No se pudo guardar la configuración', 'error');
+    }
+}
+
+async function syncNow() {
+    const result = document.getElementById('syncResult');
+    if (result) result.innerHTML = '<p class="maintenance-note">Subiendo a la nube…</p>';
+    try {
+        const res = await apiCall('/settings/sync/now', 'POST');
+        if (res && res.ok) {
+            if (result) result.innerHTML = `<p class="update-note">✅ ${escapeHtml(res.message || 'Sincronizado')}</p>`;
+        } else {
+            if (result) result.innerHTML = `<p class="update-error">⚠️ ${escapeHtml((res && res.message) || 'No se pudo sincronizar')}</p>`;
+        }
+        await loadSyncSettings();
+    } catch (error) {
+        if (result) result.innerHTML = `<p class="update-error">⚠️ ${escapeHtml(error.message)}</p>`;
+    }
 }
 
 // Lots

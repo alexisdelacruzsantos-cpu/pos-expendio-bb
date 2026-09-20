@@ -82,10 +82,11 @@ class _ServerSelectorDialogState extends State<_ServerSelectorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Elige a qué servidor (tienda) apunta la app.',
-                style: TextStyle(color: Colors.grey),
-              ),
+const Text(
+                        'Elige a qué servidor apunta la app. En la nube '
+                        '(https) es SOLO lectura: los cambios se hacen en la tienda.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
               RadioGroup<int>(
                 groupValue: _mode,
                 onChanged: (v) => setState(() => _mode = v ?? _mode),
@@ -118,7 +119,7 @@ class _ServerSelectorDialogState extends State<_ServerSelectorDialog> {
                   enabled: _mode == _customIndex,
                   keyboardType: TextInputType.url,
                   decoration: const InputDecoration(
-                    hintText: 'http://192.168.1.8:5000/api',
+                    hintText: 'https://<tu-cuenta>.pythonanywhere.com/api',
                     prefixIcon: Icon(Icons.dns_outlined),
                     isDense: true,
                     border: OutlineInputBorder(),

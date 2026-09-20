@@ -363,3 +363,76 @@ def create_terminal():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ---------------------------------------------------------------------------
+# Sincronización con el host espejo (Fase 7)
+# ---------------------------------------------------------------------------
+@settings_bp.route('/sync', methods=['GET'])
+@jwt_required()
+@require_permission('settings', 'view')
+def get_sync_settings():
+    from utils.sync_push import _get_settings, _read_status
+    try:
+        data = _get_settings()
+        data.update(_read_status())
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/sync', methods=['POST'])
+@jwt_required()
+@require_permission('settings', 'edit')
+def save_sync_settings():
+    try:
+        data = request.get_json() or {}
+        db = Database(get_db_path())
+
+        enabled = data.get('sync_enabled')
+        host = data.get('sync_host')
+        token = data.get('sync_token')
+        interval = data.get('sync_interval')
+
+        if host is not None:
+            host = str(host).strip()
+            if host:
+                if not host.lower().startswith('http'):
+                    return jsonify({'error': 'La URL del host debe comenzar con http(s)://'}), 400
+
+        if interval is not None:
+            try:
+                interval = int(interval)
+                interval = max(60, min(3600, interval))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'El intervalo debe ser un número de segundos'}), 400
+
+        with db.write():
+            if enabled is not None:
+                val = '1' if str(enabled).strip() in ('1', 'true', 'yes', 'on', 'True') else '0'
+                db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                           ('sync_enabled', val))
+            if host is not None:
+                db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                           ('sync_host', host))
+            if token is not None:
+                db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                           ('sync_token', str(token).strip()))
+            if interval is not None:
+                db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                           ('sync_interval', str(interval)))
+
+        from utils.sync_push import _get_settings
+        return jsonify(_get_settings()), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/sync/now', methods=['POST'])
+@jwt_required()
+@require_permission('settings', 'edit')
+def sync_now():
+    try:
+        from utils.sync_push import run_sync
+        ok, message = run_sync(force=True)
+        from utils.sync_push import _get_settings
+        return jsonify({'ok': ok, 'message': message, 'settings': _get_settings()}), 200
+    except Exception as e:
+        return jsonify({'ok': False, 'message': 'Error: %s' % e}), 500

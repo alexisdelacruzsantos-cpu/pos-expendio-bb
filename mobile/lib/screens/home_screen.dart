@@ -14,6 +14,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final cloudMode = ApiService.isCloudMode();
     return Scaffold(
       appBar: AppBar(
         title: const Text('POS Expendio BB'),
@@ -80,13 +81,34 @@ class HomeScreen extends StatelessWidget {
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ProductsScreen())),
           ),
-          _DashboardCard(
-            icon: Icons.tune,
-            title: 'Ajustes de Inventario',
-            subtitle: 'Corrige stock, precios y lotes',
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AdjustmentsScreen())),
-          ),
+          if (cloudMode)
+            Card(
+              color: Colors.orange.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline, color: Colors.orange.shade800),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Modo nube (solo lectura). Los ajustes de inventario '
+                        'se hacen en la tienda.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            _DashboardCard(
+              icon: Icons.tune,
+              title: 'Ajustes de Inventario',
+              subtitle: 'Corrige stock, precios y lotes',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const AdjustmentsScreen())),
+            ),
         ],
       ),
     );

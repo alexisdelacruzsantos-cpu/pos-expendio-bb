@@ -2944,6 +2944,79 @@ td.name-cell {
     font-size: 13px;
 }
 
+.settings-field {
+    margin: 0 0 14px;
+}
+
+.settings-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.settings-field input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+}
+
+.settings-field input:focus {
+    outline: none;
+    border-color: var(--primary, #0072ce);
+}
+
+.settings-label-sync {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.settings-label-sync input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 4px 0 12px;
+}
+
+.settings-actions .maintenance-btn {
+    width: auto;
+    flex: 1 1 200px;
+}
+
+.sync-status {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text-light);
+    word-break: break-word;
+}
+
+.sync-status strong {
+    color: var(--text);
+}
+
 .catalog-options {
     background: var(--card);
     border: 1px solid var(--border);
