@@ -188,6 +188,13 @@ def run_sync(force=False):
             headers = {'Authorization': 'Bearer ' + token}
             files = {'file': ('pos.db.gz', payload, 'application/gzip')}
             data = {'sha': sha}
+            # Despierta el host si estaba dormido (PythonAnywhere free duerme tras
+            # unos minutos sin tráfico) antes de subir el snapshot, para que la
+            # primera petición no compita con el arranque del worker.
+            try:
+                requests.get(host.rstrip('/') + '/api/sync/ping', timeout=20)
+            except requests.exceptions.RequestException:
+                pass
             resp = requests.post(
                 host.rstrip('/') + '/api/sync/db',
                 headers=headers,
