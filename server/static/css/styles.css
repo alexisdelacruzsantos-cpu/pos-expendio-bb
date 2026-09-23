@@ -386,10 +386,10 @@ body>* {
 .global-clock {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     background: rgba(255, 255, 255, 0.08);
     color: white;
-    padding: 4px 12px;
+    padding: 6px 18px;
     border-radius: 999px;
     box-shadow: none;
     pointer-events: none;
@@ -403,7 +403,7 @@ body>* {
 }
 
 .global-clock-icon {
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
 }
@@ -412,31 +412,33 @@ body>* {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
 }
 
 .global-clock-date {
-    font-size: 10px;
-    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 800;
     text-transform: capitalize;
-    color: #39ff14;
-    letter-spacing: 0.3px;
+    color: white;
+    letter-spacing: 0.4px;
     line-height: 1;
-    background: rgba(57, 255, 20, 0.2);
-    padding: 0 8px;
-    border-radius: 999px;
-    text-shadow: 0 0 6px rgba(57, 255, 20, 0.9), 0 1px 2px rgba(0, 0, 0, 0.35);
+    background: #111;
+    padding: 3px 10px;
+    border-radius: 6px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
 }
 
 .global-clock-time {
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 22px;
     font-weight: 800;
     color: white;
     letter-spacing: 0.6px;
     line-height: 1;
     background: #111;
-    padding: 0 8px;
+    padding: 3px 10px;
     border-radius: 6px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
