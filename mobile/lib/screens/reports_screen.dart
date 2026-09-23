@@ -47,6 +47,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
     _load();
   }
 
+  /// Con un departamento elegido, el API resume el TOTAL con los tickets
+  /// completos que contienen ese departamento (p.ej. Barcel $552), mientras que
+  /// el detalle por departamento (by_department) trae SOLO la línea de ese
+  /// departamento ($329). Para que la vista detalle coincida con el listado,
+  /// se usa el resumen línea-proporcional del propio departamento.
+  SalesSummary _effectiveSummary(SalesReport report) {
+    final dept = _department;
+    if (dept == null) return report.summary;
+    final row = report.byDepartment.firstWhere(
+      (d) => d.department == dept,
+      orElse: () => DepartmentSummary(
+        department: dept,
+        sales: 0,
+        units: 0,
+        revenue: 0,
+        cost: 0,
+        profit: 0,
+      ),
+    );
+    final total = row.revenue;
+    return SalesSummary(
+      sales: row.sales,
+      total: total,
+      avgTicket: row.sales > 0 ? total / row.sales : 0,
+      maxTicket: 0,
+      units: row.units,
+      profit: row.profit,
+      marginPct: total > 0 ? row.profit / total * 100 : 0,
+    );
+  }
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -92,7 +123,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
             );
           }
           final report = snap.data!;
-          final s = report.summary;
+          final s = _effectiveSummary(report);
+          final dept = _department;
           return RefreshIndicator(
             onRefresh: () async => _load(),
             child: ListView(
@@ -155,13 +187,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     children: [
                       _Row('Total', _money(s.total)),
                       _Row('Ticket promedio', _money(s.avgTicket)),
-                      _Row('Ticket máximo', _money(s.maxTicket)),
+                      _Row('Ticket máximo', dept == null ? _money(s.maxTicket) : '—'),
                       _Row('Utilidad', _money(s.profit)),
                       _Row('Margen', '${s.marginPct}%'),
                     ],
                   ),
                 ),
-                if (report.payments.isNotEmpty)
+                if (dept == null && report.payments.isNotEmpty)
                   _SectionCard(
                     title: 'Métodos de pago',
                     child: Column(
@@ -188,11 +220,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           .toList(),
                     ),
                   ),
-                if (report.byDepartment.isNotEmpty)
+                if (dept == null && report.byDepartment.isNotEmpty)
                   _SectionCard(
-                    title: _department == null
-                        ? 'Por departamento (toca para filtrar)'
-                        : 'Ventas de $_department',
+                    title: 'Por departamento (toca para filtrar)',
                     child: Column(
                       children: report.byDepartment
                           .map((d) => InkWell(

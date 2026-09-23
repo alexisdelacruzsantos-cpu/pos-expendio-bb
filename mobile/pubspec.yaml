@@ -1,7 +1,7 @@
 name: pos_expendio_bb
 description: POS Expendio BB - App móvil para consultar ventas, reportes e información del POS.
 publish_to: 'none'
-version: 1.2.1+141
+version: 1.2.2+142
 
 environment:
   sdk: '>=3.1.0 <4.0.0'
