@@ -4616,6 +4616,10 @@ function clearOrder() {
     showToast('Pedido limpio', 'success');
 }
 
+function sortOrdersCart() {
+    ordersCart.sort((a, b) => Number(b.quantity || 0) - Number(a.quantity || 0));
+}
+
 function renderOrdersCart() {
     const wrap = document.getElementById('ordersCartBody');
     if (!wrap) return;
@@ -4623,6 +4627,7 @@ function renderOrdersCart() {
         wrap.innerHTML = `<p class="orders-cart-empty">El pedido está vacío. Agrega productos desde la tabla.</p>`;
         return;
     }
+    sortOrdersCart();
     const totalItems = ordersCart.reduce((a, x) => a + Number(x.quantity || 0), 0);
     const totalCost = ordersCart.reduce((a, x) => a + Number(x.cost || 0) * Number(x.quantity || 0), 0);
     wrap.innerHTML = ordersCart.map((x, i) => `
