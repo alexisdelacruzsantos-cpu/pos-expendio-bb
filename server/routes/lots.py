@@ -160,6 +160,9 @@ def create_lot():
         if not product_id or not expiry_date:
             return jsonify({'error': 'Producto y fecha de caducidad son requeridos'}), 400
 
+        if not sale_price or float(sale_price) <= 0:
+            return jsonify({'error': 'El precio de venta del lote es requerido (mayor a 0)'}), 400
+
         db = Database(get_db_path())
 
         product = db.fetch_one('SELECT id, name, price, stock FROM products WHERE id = ?', (product_id,))
@@ -172,9 +175,6 @@ def create_lot():
                 'error': f'No hay suficientes existencias en el stock general: solo {avail:g} pieza(s) disponible(s)',
                 'available': avail
             }), 400
-
-        if not sale_price or float(sale_price) <= 0:
-            sale_price = float(product['price'] or 0)
 
         cursor = db.execute('''
             INSERT INTO lots (product_id, batch_number, production_date, expiry_date, initial_quantity, current_quantity, location, sale_price)

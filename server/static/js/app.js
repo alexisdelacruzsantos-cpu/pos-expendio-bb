@@ -8712,6 +8712,8 @@ function showAddLotModal() {
         return;
     }
 
+    const today = new Date().toISOString().slice(0, 10);
+
     showModal('Nuevo Lote', `
         <form id="addLotForm" onsubmit="saveLot(event)">
             <div class="form-group">
@@ -8739,34 +8741,25 @@ function showAddLotModal() {
             </div>
 
             <div class="form-group">
-                <label>Número de Lote</label>
+                <label>Nombre del lote (opcional)</label>
                 <input type="text" name="batch_number" placeholder="Ej: L2026-001">
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Fecha de Producción</label>
-                    <input type="date" name="production_date">
-                </div>
-                <div class="form-group">
-                    <label>Fecha de Caducidad *</label>
-                    <input type="date" name="expiry_date" id="lotExpiryDate" required oninput="validateLotForm()">
-                </div>
+            <div class="form-group">
+                <label>Fecha de Caducidad *</label>
+                <input type="date" name="expiry_date" id="lotExpiryDate" value="${today}" required oninput="validateLotForm()">
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Cantidad *</label>
-                    <input type="number" name="initial_quantity" id="lotQuantity" step="1" min="1" required oninput="updateLotStockPreview()">
-                </div>
-                <div class="form-group">
-                    <label>Ubicación</label>
-                    <input type="text" name="location" value="principal">
-                </div>
+            <div class="form-group">
+                <label>Cantidad *</label>
+                <input type="number" name="initial_quantity" id="lotQuantity" step="1" min="1" required oninput="updateLotStockPreview()">
             </div>
 
             <div class="form-group">
                 <label>Precio de venta del lote *</label>
-                <input type="number" name="sale_price" id="lotSalePrice" step="0.01" min="0" required oninput="validateLotForm()">
-                <small class="lot-price-hint" id="lotPriceHint">Se guarda como precio de venta al público para este lote específico. Si se deja en blanco, se usará el precio original del producto.</small>
+                <div class="currency-input">
+                    <span class="currency-symbol">$</span>
+                    <input type="number" name="sale_price" id="lotSalePrice" value="0" step="0.01" min="0" required oninput="validateLotForm()">
+                </div>
+                <small class="lot-price-hint" id="lotPriceHint">Precio de venta al público para este lote. Debes ingresar un monto mayor a 0.</small>
             </div>
 
             <div class="lot-stock-preview" id="lotStockPreview" style="display:none">
@@ -8918,8 +8911,8 @@ async function selectLotProduct(productId) {
     lotProductSelected = product;
 
     const priceInput = document.getElementById('lotSalePrice');
-    if (priceInput && !priceInput.value) {
-        priceInput.value = parseFloat(product.price || 0).toFixed(2);
+    if (priceInput) {
+        priceInput.value = '0';
     }
     const priceHint = document.getElementById('lotPriceHint');
     if (priceHint) {
@@ -8998,12 +8991,11 @@ function updateLotStockPreview() {
         preview.style.display = 'none';
         return;
     }
-    const cur = Number(lotProductSelected._effectiveStock || 0);
     const baseMax = Number(lotProductSelected._baseStock ?? (lotProductSelected.stock ?? 0));
     const add = parseFloat(qtyInput.value) || 0;
     document.getElementById('lotPreviewCurrent').textContent = baseMax;
     document.getElementById('lotPreviewAdd').textContent = add;
-    document.getElementById('lotPreviewTotal').textContent = cur + add;
+    document.getElementById('lotPreviewTotal').textContent = Math.max(0, baseMax - add);
     const maxRow = document.getElementById('lotPreviewMaxRow');
     const maxEl = document.getElementById('lotPreviewMax');
     if (maxEl && maxRow) {
@@ -9031,7 +9023,7 @@ function validateLotForm() {
     const exp = document.getElementById('lotExpiryDate')?.value;
     const price = parseFloat(document.getElementById('lotSalePrice')?.value);
     const baseMax = Number(lotProductSelected?._baseStock ?? (lotProductSelected?.stock ?? 0));
-    const valid = productId && qty > 0 && qty <= baseMax && exp && price >= 0;
+    const valid = productId && qty > 0 && qty <= baseMax && exp && price > 0;
     btn.disabled = !valid;
 }
 
@@ -9047,6 +9039,12 @@ async function saveLot(e) {
     const qty = parseFloat(formData.get('initial_quantity'));
     if (!qty || qty <= 0) {
         showToast('La cantidad debe ser mayor a 0', 'error');
+        return;
+    }
+
+    const enteredPrice = parseFloat(formData.get('sale_price'));
+    if (!enteredPrice || enteredPrice <= 0) {
+        showToast('El precio de venta del lote debe ser mayor a 0', 'error');
         return;
     }
 
@@ -9066,7 +9064,7 @@ async function saveLot(e) {
         expiry_date: formData.get('expiry_date'),
         initial_quantity: qty,
         location: formData.get('location') || 'principal',
-        sale_price: parseFloat(formData.get('sale_price')) || originalPrice
+        sale_price: enteredPrice
     };
 
     try {

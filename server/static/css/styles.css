@@ -5895,6 +5895,45 @@ td.name-cell {
     font-weight: 700;
 }
 
+.currency-input {
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-height: 34px;
+}
+
+.currency-input:focus-within {
+    border-color: var(--primary, #2563eb);
+}
+
+.currency-input .currency-symbol {
+    color: var(--text-light);
+    font-weight: 700;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.currency-input input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: inherit;
+    -moz-appearance: textfield;
+}
+
+.currency-input input::-webkit-outer-spin-button,
+.currency-input input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .adjustments-field-adjust {
     grid-column: span 1;
 }
