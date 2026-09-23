@@ -1688,7 +1688,7 @@ function getScannerInput(sec) {
     return document.getElementById(sec === 'adjustments' ? 'adjustmentsSearchInput' : 'posSearchInput');
 }
 
-function isScannerFocusBlocked() {
+function isOverlayBlockingScanner() {
     const overlays = ['modalOverlay', 'paymentOverlay', 'priceCheckerOverlay', 'salesHistoryOverlay', 'lotSelectorOverlay', 'shiftGate', 'ubuntuOverlay'];
     for (const id of overlays) {
         const el = document.getElementById(id);
@@ -1696,6 +1696,11 @@ function isScannerFocusBlocked() {
     }
     const card = document.getElementById('adjustmentsProductCard');
     if (card && card.style.display === 'block') return true;
+    return false;
+}
+
+function isScannerFocusBlocked() {
+    if (isOverlayBlockingScanner()) return true;
     const active = document.activeElement;
     if (!(active instanceof HTMLElement)) return true;
     if (active === document.body || active === document.documentElement) return false;
@@ -1767,6 +1772,34 @@ function setupScannerFocusAlert() {
             hideScannerFocusAlert();
         }
     }, true);
+
+    // Pérdida de foco de la VENTANA (Alt+Tab, apertura de otra app que tapa el
+    // POS, algo del SO en segundo plano...): el terminal quedó en segundo plano.
+    // Se percibe al instante y se lanza la alerta grande + el sonido de aviso.
+    let windowFocusPending = false;
+    const onWindowLost = () => {
+        if (windowFocusPending) return;
+        windowFocusPending = true;
+        const sec = getScannerSection();
+        if (!sec) return;
+        if (isOverlayBlockingScanner()) return;
+        showScannerFocusAlert();
+    };
+    const onWindowReturned = () => {
+        setTimeout(() => {
+            windowFocusPending = false;
+            checkScannerFocusAlert();
+        }, 250);
+    };
+    window.addEventListener('blur', onWindowLost);
+    window.addEventListener('focus', onWindowReturned);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            onWindowLost();
+        } else {
+            onWindowReturned();
+        }
+    });
 }
 
 async function refreshSalesData() {
@@ -2019,9 +2052,20 @@ function getProductSearchKey(p) {
     return p._searchKey;
 }
 
+// ¿El texto parece un código de barras? Solo entonces se busca por prefijo de
+// barcode. Códigos numéricos normales ("7500") y promos con "P" ("p75010001").
+// Una letra suelta como "p" NO debe disparar búsquedas por barcode (habría
+// productos como "P750..." que no empiezan con "p" en el nombre).
+function isBarcodeLikeQuery(q) {
+    return /^\d/.test(q) || /^[pP]\d{3,}$/.test(q);
+}
+
 function productMatchesPrefix(p, query) {
+    if (!query) return true;
     const key = getProductSearchKey(p);
-    return key.startsWith(query) || key.indexOf('\u0000' + query) !== -1;
+    if (key.startsWith(query)) return true;
+    if (isBarcodeLikeQuery(query) && key.indexOf('\u0000' + query) !== -1) return true;
+    return false;
 }
 
 // Búsqueda "inteligente" para VENTAS: acepta nombre sin empezar por el prefijo
@@ -2033,8 +2077,8 @@ function getProductSearchScore(p, query) {
     if (!q) return 99;
     const name = (p.name || '').toLowerCase();
     const bc = (p.barcode || '').toLowerCase();
-    if (bc && bc.startsWith(q)) return 0;                     // código (parcial)
-    if (name.startsWith(q)) return 1;                         // empieza igual
+    if (bc && isBarcodeLikeQuery(q) && bc.startsWith(q)) return 0;   // código (parcial)
+    if (name.startsWith(q)) return 1;                                // empieza igual
     const tokens = q.split(' ');
     for (const t of tokens) {
         if (t.length <= 1) {
@@ -6672,9 +6716,6 @@ async function confirmPayment() {
         document.getElementById('posSearchInput')?.focus();
         await Promise.all([loadProducts(), loadLots(true)]);
         if (document.getElementById('salesHistoryOverlay')?.style.display === 'flex') refreshSalesHistory();
-
-        showTicketModal(lastSaleResult);
-        setupAutoCloseTicket();
     } catch (error) {
         let msg = 'Error al procesar venta';
         let shiftRequired = false;
