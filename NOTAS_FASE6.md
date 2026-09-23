@@ -153,6 +153,28 @@ mobile/lib/
 
 ---
 
+## Historial de la app (versiones web/APK)
+
+- **v1.2.1+141** — default de servidor = tienda (`kStoreBaseUrl`) en el APK,
+  preset **"Nube (PythonAnywhere)"** (`kCloudBaseUrl`) en el selector. En web la
+  app auto-detecta el mismo origen (ver `NOTAS_FASE7.md`).
+- **v1.2.2+142 (commit `bd7c965`)** — **fix reporte de ventas por departamento.**
+  El filtro de un departamento (p.ej. Barcel) mostraba el **total de los tickets
+  completos** que contienen ese depto (Barcel $552) en vez del monto del propio
+  departamento ($329) — el API `/api/reports/sales?department=` agrega por
+  ticket cuando se filtra. En la pantalla (`reports_screen.dart`) se usa el
+  resumen **línea-proporcional** de `by_department` para las tarjetas y el
+  resumen, y al filtrar un depto se ocultan "Métodos de pago" y el listado
+  (ambos mezclan tickets). Ticket máximo se muestra como "—" en ese modo.
+
+> Bug raíz (solo backend): `server/routes/reports.py` con `department` agrega
+> `SUM(s.total)` (tickets) en `summary`, pero `by_department` y `top_products`
+> usan las líneas. El dashboard WEB del POS tiene el mismo comportamiento al
+> filtrar por departamento; se dejó pendiente decidir si se corrige el backend
+> (suma línea-proporcional) en un futuro release.
+
+---
+
 *NOTA PARA EL FUTURO:* si algo de la app móvil "deja de funcionar", el orden de revisión es:
 1) que el endpoint del backend responda (curl con token), 2) que la URL no tenga redirect
 (siempre barra final en `/sales/`), 3) que el parseo del modelo aguante el JSON real

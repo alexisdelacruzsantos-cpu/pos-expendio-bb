@@ -3,16 +3,18 @@
 ## Información del Proyecto
 - **Nombre:** POS-EXPENDIO-BB (Expendio Bimbo y Barcel)
 - **Tipo:** Sistema de Punto de Venta
-- **Versión:** 1.2.1
+- **Versión POS:** 1.4.2 · **Versión app móvil:** 1.2.2+142
 - **Fecha inicio:** 01/09/2026
 
 ---
 
-## ESTADO ACTUAL: FASE 9 TERMINALES COMPLETADA + REPORTES SEMANALES + APP MÓVIL (FASE 6) + DESPLIEGUE EN TIENDA ✓
+## ESTADO ACTUAL: FASE 7 COMPLETADA Y EN PRODUCCIÓN (nube + sync) ✓
 
-> **Versión actual:** `1.2.1` (último release en repo; la tienda se actualiza vía `POST /api/updates/apply`)
-> **Despliegue en tienda:** servidor en `192.168.1.6:5000` (admin/admin123), actualizaciones web funcionando. Ver `PROCESO_RELEASE.md`.
-> **Fecha:** 19/09/2026
+> **Versión POS actual:** `1.4.2` (release con ping de despertar al host en la nube)
+> **Tienda:** `192.168.1.8:5000` (admin/admin123) — ya sincronizando a la nube cada 5 min
+> **Host nube (solo lectura):** `https://alexis10265.pythonanywhere.com` — recibe la BD, sirve `/movil/`
+> **App móvil:** web en la nube (`/movil/`, v1.2.2+142) + selector Tienda/Nube
+> **Fecha:** 22/09/2026
 
 ### Lo que funciona hasta ahora:
 
@@ -66,7 +68,7 @@
 POS-EXPENDIO-BB/
 ├── server/
 │   ├── app.py                    # Servidor principal Flask
-│   ├── config.py                 # Configuración (APP_VERSION 1.2.1)
+│   ├── config.py                 # Configuración (APP_VERSION 1.4.2)
 │   ├── requirements.txt          # Dependencias
 │   ├── start_server.sh           # Script de arranque
 │   ├── routes/                   # API endpoints
@@ -111,16 +113,34 @@ POS-EXPENDIO-BB/
 - [x] **Fase 4:** Control de caducidad (lotes) + FIFO ← Completada 01/09/2026
 - [x] **Fase 5:** Cortes de caja ← Completada 01/09/2026
 - [x] **Fase 9:** Terminales de pago Mercado Pago Point ← Completada 08/09/2026
+- [x] **Fase 7:** Sync a la nube (PythonAnywhere) — **completada y en producción**. Ver `NOTAS_FASE7.md`
 - [~] **Fase 8:** Reportes — en curso (tablas por día/departamento listas, faltan gráficas)
-- [~] **Fase 6:** App móvil (Flutter) — en curso: login, home, reporte de ventas (fecha única), historial, productos y ajustes de inventario funcionando contra el POS. Falta sincronización (Fase 7) y APK para el celular. Ver `NOTAS_FASE6.md`.
-- [ ] Fase 7: Sincronización (Supabase) — no iniciada
+- [x] **Fase 6:** App móvil (Flutter) — completada: login, home, reportes, historial, productos y ajustes contra el POS; desplegada como web en la nube. Falta solo el APK Android y el fix del filtro por departamento está en v1.2.2. Ver `NOTAS_FASE6.md`.
 - [ ] Fase 10: Pruebas finales y documentación
 
 ---
 
-## Cambios recientes (05/09 - 19/09/2026, releases v1.0.0 → v1.2.1)
+## Cambios recientes (releases v1.2.1 → v1.4.2 / app v1.2.2)
 
-### Releases 1.1.33 → 1.2.1 (ultimo avance)
+### Releases POS
+- **1.4.2 — Sync + ping a la nube:** cada subida hace `GET /api/sync/ping` al
+  host antes de subir (despierta PythonAnywhere free dormido). `9a82b22`.
+- **1.4.1 — Reportes:** columna utilidad en valor por categoría (inventario) +
+  filtro por departamento en reportes (web y app) + ajuste de stock por
+  parámetro +/- en app. `66dd1e5`.
+- **1.4.0 — Fase 7:** sincronización de solo lectura al host gratuito + app web
+  en la nube. `5d5ae34`.
+- **Host hardening (`a94420e`):** con `POS_HOST=1` el host solo expone `/movil/`
+  y la API readonly; `/dashboard` y `/login` redirigen a `/movil/`.
+
+### App móvil
+- **v1.2.1+141** — default Tienda (`192.168.1.8`) en el APK + preset
+  "Nube (PythonAnywhere)". `7b27d1e`.
+- **v1.2.2+142** — fix reporte por departamento: la vista detalle usaba el total
+  de tickets completos ($552) en vez del monto del departamento ($329); ahora usa
+  el resumen línea-proporcional. `bd7c965`.
+
+### Anteriores (1.1.33 → 1.2.1)
 - **1.2.1 — Promociones:** solo alcance por producto específico, mostrar stock general y filtrar productos sin existencia.
 - **1.2.0 — Login:** autocompletado de usuario (endpoint `/api/auth/users` + dropdown navegable con flechas).
 - **1.1.55 — Ajustes:** guardar solo precio/costo sin stock, mostrar productos stock 0 en búsqueda, F4 limpia formulario, refresco de búsqueda tras ajuste.
@@ -164,8 +184,12 @@ POS-EXPENDIO-BB/
 - [ ] Implementar **gráficas de reportes** (charts tipo las imágenes de referencia).
 - [ ] **Re-imprimir último ticket** de venta (solo existe recibo de cierre de caja).
 - [ ] **Impresora térmica USB/Serial (escpos)** — no implementada.
-- [ ] **App móvil Flutter** (Fase 6): probar contra la tienda `192.168.1.8` y generar APK Android para el celular. Siguiente fase: sincronización (Fase 7).
-- [ ] **Sincronización Supabase** (Fase 7) — no iniciada.
+- [ ] **App móvil Flutter** (Fase 6): generar **APK Android** para el celular
+      (default Tienda en LAN / preset Nube en la calle). La versión web ya está
+      funcionando en la nube.
+- [ ] **Backend departamento**: decidir si `/api/reports/sales?department=` debe
+      sumar solo las líneas del depto (la app ya lo compensa en v1.2.2; el
+      dashboard web del POS aún muestra ticket-mix).
 - [ ] **Mejorar ticket modal**: método de pago, lote por producto, descuentos.
 
 ---
@@ -232,10 +256,13 @@ python app.py
 - Sirve para detectar errores: `ReferenceError`, `SyntaxError`, modales rotos, botones sin handler.
 
 ### Versión actual
-- `APP_VERSION = "1.2.1"` (server/config.py)
-- Tienda: `192.168.1.6:5000` (admin/admin123)
-- SSH: `expendiobimbo@192.168.1.6`
+- `APP_VERSION = "1.4.2"` (server/config.py)
+- Tienda: `192.168.1.8:5000` (admin/admin123) — SSH `expendiobimbo@192.168.1.8`
+- Nube: `https://alexis10265.pythonanywhere.com` (/movil/ web app v1.2.2+142 y API readonly)
+- App móvil: `1.2.2+142` (mobile/pubspec.yaml)
 
 ---
 
-*Última actualización: 19/09/2026 - Fase 6 (app móvil Flutter) en curso: login, home, reportes, historial, productos y ajustes funcionando; fixes de CORS/trailing slash, parseo `category_color` y reporte por fecha única. Último release del POS: v1.2.1 (promociones por producto + autocompletado login). Ver `NOTAS_FASE6.md`*
+*Última actualización: 22/09/2026 — Fase 7 en producción (tienda sincroniza cada 5 min a
+PythonAnywhere, host verificado, app web v1.2.2+142 desplegada en /movil/ con fix de
+reporte por departamento). POS en 1.4.2. Ver `NOTAS_FASE7.md` y `NOTAS_FASE6.md`.*

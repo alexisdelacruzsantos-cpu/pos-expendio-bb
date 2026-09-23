@@ -4,7 +4,8 @@
 > lectura** de su base a un host gratuito (PythonAnywhere) y cómo la app móvil
 > (Flutter web) se consulta desde el celular sin depender de la red de la tienda.
 >
-> **Estado:** implementado (release 1.4.0) y listo para desplegar el host.
+> **Estado:** en producción — POS en 1.4.2 + host verificado en PythonAnywhere
+> (`alexis10265`), sync automático cada 5 min funcionando.
 
 ---
 
@@ -34,7 +35,11 @@ Las ventas y los ajustes de inventario se siguen haciendo únicamente en la tien
      cambió desde el último envío, no sube nada.
   3. Toma un **snapshot WAL-safe** (`sqlite3.backup()`), lo comprime en gzip y
      hace `POST /api/sync/db` con `Authorization: Bearer <token>`.
-  4. Guarda el resultado en `pos/.last_sync.json` (fuera de la BD, para no crear
+  4. **Antes de subir** hace `GET /api/sync/ping` al host (release **1.4.2**):
+     despierta el host free si estaba dormido y evita que la primera petición
+     compita con el arranque del worker (sin esto, a veces el primer push
+     fallaba por timeout).
+  5. Guarda el resultado en `pos/.last_sync.json` (fuera de la BD, para no crear
      un bucle de subidas por el propio timestamp de estado).
 - Configuración y estado en **Ajustes → Sincronización** del POS (URL del host,
   token, intervalo, toggle, botón "Sincronizar ahora", último resultado).
@@ -102,18 +107,37 @@ sys.path.insert(0, '/home/<usuario>/pos-expendio-bb/server')
 from app import app as application
 ```
 
-### 5. Variables de entorno (pestaña Web → Environmental variables)
-```
-POS_READONLY=1
-POS_HOST=1
-SYNC_TOKEN=<token FÁCIL de adivinar NO; usa uno largo>
-PORT=5000
-```
+### 5. SYNC_TOKEN del host (método probado: archivo + WSGI)
 El `SYNC_TOKEN` debe ser **el mismo** que se configure en la tienda
 (Ajustes → Sincronización). Generar uno:
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
+> ⚠️ **Trampa real de PythonAnywhere:** el editor del WSGI **rompe "literals" muy
+> largos** al pegarlos. Un `os.environ['SYNC_TOKEN'] = '<token de 58+ chars>'` se
+> truncó a la mitad → `SyntaxError: unterminated string literal` y el sitio quedó
+> en **500** (página "Something went wrong"). Por eso el método robusto es leer el
+> token desde un archivo de una sola línea:
+
+1. **Files** → crear `/home/<usuario>/sync_token.txt` con **solo** el token
+   (una línea, sin comillas, sin espacios).
+2. **Web** → clic en el enlace azul "WSGI configuration file" → reemplazar
+   **todo** el contenido por:
+   ```python
+   import os, sys
+   sys.path.insert(0, '/home/<usuario>/pos-expendio-bb/server')
+   os.environ['SYNC_TOKEN'] = open('/home/<usuario>/sync_token.txt').read().strip()
+   import app
+   application = app.app
+   ```
+   > Si el editor avisa `'app' imported but unused`: es un **falso positivo**;
+   > `import app` + `application = app.app` silencia el aviso y PA detecta
+   > `application` correctamente.
+3. **Web → Reload** y comprobar `/api/health` → `200`.
+
+_(Alternativa: pestaña Web → "Environmental variables" con `POS_READONLY=1`,
+`POS_HOST=1`, `SYNC_TOKEN=<token>`, `PORT=5000`; pero el archivo del punto 1 es
+más robusto contra el editor de WSGI.)_
 
 ### 6. Subir la app móvil (build web)
 En tu máquina de desarrollo (donde está Flutter):
@@ -154,11 +178,28 @@ y envía un correo con un botón "Run until ..." que extiende la actividad
 3. Pulsar **Sincronizar ahora** y verificar que el status indica "Subida exitosa".
 4. Desde el celular abrir `https://<usuario>.pythonanywhere.com/movil/` y entrar.
 
-### 10. Redespliegue de la app cuando cambie `mobile/`
-- En tu máquina: `flutter build web --release`, subir de nuevo `build/web` a PA.
-- El backend (server/) llega a PA con el git clone/pull manual, SIEMPRE que haya
-  quedado en **1.4.0**; los builders de PA free no existen, así que el
-  despliegue es manual y poco frecuente.
+### 10. Redespliegue de la app cuando cambie `mobile/` (procedimiento probado)
+En tu máquina (Flutter en `~/development/flutter/bin`):
+```bash
+export PATH="$HOME/development/flutter/bin:$PATH"
+cd mobile && flutter build web --release --base-href=/movil/
+cd build && rm -f web.zip && zip -r web.zip web     # el zip trae la carpeta web/ DENTRO
+```
+En PythonAnywhere:
+1. **Files → Upload of a file** → sube `web.zip` a `~/` (sobrescribe).
+2. En la consola **Bash**:
+   ```bash
+   cd ~/pos-expendio-bb/mobile/build
+   rm -rf web
+   unzip -o ~/web.zip -d .     # se extrae en build/ porque el zip trae web/ adentro
+   ```
+3. Abrir `/movil/` con **Ctrl+Shift+R** (el service worker de Flutter guarda la
+   versión vieja; sin recarga forzada parece que no se actualizó).
+
+El backend (`server/`) llega a PA con `git pull` manual en `~/pos-expendio-bb`;
+la tienda se actualiza sola desde el repo público vía `/api/updates/apply`
+(`<usuario>` con permisos/admin). Recordar: subir `APP_VERSION` en `config.py` y
+`git push origin main` para que el release llegue a las tiendas.
 
 ---
 
