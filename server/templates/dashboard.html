@@ -28,16 +28,24 @@
             <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg></span>
             <span>Ventas</span>
         </button>
+        <button class="topbar-tab" data-section="adjustments">
+            <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></span>
+            <span>Ajustes</span>
+        </button>
+        <button class="topbar-tab" data-section="inventory-history">
+            <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg></span>
+            <span>Historial</span>
+        </button>
+        <button class="topbar-tab" data-section="reports">
+            <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l2-4 2 4 3-6 2 6"></path></svg></span>
+            <span>Reportes</span>
+        </button>
         <button class="topbar-tab" data-section="cash">
             <span class="ubuntu-tile-icon"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 9h.01M6 15h.01M9 9h.01M9 15h.01M12 9h.01M12 15h.01M15 9h.01M15 15h.01M18 9h.01M18 15h.01"></svg></span>
             <span>Caja</span>
         </button>
     </nav>
             <div class="topbar-right">
-                <button class="shift-chip" id="shiftChip" onclick="navigateTo('cash')" title="Ver turno de caja">
-                    <span class="shift-chip-dot" id="shiftChipDot"></span>
-                    <span id="shiftChipLabel">Sin turno</span>
-                </button>
                 <div class="global-clock" id="globalClock" title="Fecha y hora actual">
                     <span class="global-clock-icon"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
                     <div class="global-clock-text">
@@ -1206,6 +1214,15 @@
                     <div class="sh-ticket" id="shTicket" style="display:none"></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="scanner-focus-alert" id="scannerFocusAlert" onclick="dismissScannerFocusAlert(true)">
+        <div class="scanner-focus-box">
+            <div class="scanner-focus-icon">⌨️</div>
+            <div class="scanner-focus-title">El escáner está desactivado</div>
+            <div class="scanner-focus-text" id="scannerFocusHint"></div>
+            <button type="button" class="scanner-focus-btn" onclick="event.stopPropagation(); dismissScannerFocusAlert(true)">Reenfocar ahora</button>
         </div>
     </div>
 

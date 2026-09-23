@@ -236,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSectionShortcuts();
     setupSalesFocusGuard();
     setupAdjustmentsFocusGuard();
+    setupScannerFocusAlert();
     setupAdjustmentFormInputs();
     showSection('sales');
 });
@@ -1669,6 +1670,105 @@ function setupAdjustmentsFocusGuard() {
     });
 }
 
+// ===== Alerta de foco del escáner (F2 / F4) =====
+const SCANNER_ALERT_HINT = {
+    sales: { key: 'F2', label: 'Ventas' },
+    adjustments: { key: 'F4', label: 'Ajustes' }
+};
+
+function getScannerSection() {
+    const sales = document.getElementById('salesSection');
+    if (sales && sales.classList.contains('active')) return 'sales';
+    const adj = document.getElementById('adjustmentsSection');
+    if (adj && adj.classList.contains('active')) return 'adjustments';
+    return null;
+}
+
+function getScannerInput(sec) {
+    return document.getElementById(sec === 'adjustments' ? 'adjustmentsSearchInput' : 'posSearchInput');
+}
+
+function isScannerFocusBlocked() {
+    const overlays = ['modalOverlay', 'paymentOverlay', 'priceCheckerOverlay', 'salesHistoryOverlay', 'lotSelectorOverlay', 'shiftGate', 'ubuntuOverlay'];
+    for (const id of overlays) {
+        const el = document.getElementById(id);
+        if (el && (el.classList.contains('active') || el.classList.contains('open') || el.style.display === 'flex' || el.style.display === 'block')) return true;
+    }
+    const card = document.getElementById('adjustmentsProductCard');
+    if (card && card.style.display === 'block') return true;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return true;
+    if (active === document.body || active === document.documentElement) return false;
+    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable) return true;
+    return false;
+}
+
+function showScannerFocusAlert() {
+    const el = document.getElementById('scannerFocusAlert');
+    const sec = getScannerSection();
+    if (!el || !sec) return;
+    const hint = SCANNER_ALERT_HINT[sec];
+    const hintEl = document.getElementById('scannerFocusHint');
+    if (hintEl) {
+        hintEl.innerHTML = `Presiona <b>${hint.key}</b> para volver a capturar en <b>${hint.label}</b>`;
+    }
+    el.style.display = 'flex';
+    playScannerAlertBeep();
+    scheduleScannerAlertReminder();
+}
+
+function hideScannerFocusAlert() {
+    stopScannerAlertReminder();
+    const el = document.getElementById('scannerFocusAlert');
+    if (el) el.style.display = 'none';
+}
+
+function dismissScannerFocusAlert(andFocus = false) {
+    hideScannerFocusAlert();
+    const sec = getScannerSection();
+    if (andFocus && sec) {
+        const input = getScannerInput(sec);
+        if (input) input.focus();
+    }
+}
+
+function checkScannerFocusAlert() {
+    const sec = getScannerSection();
+    if (!sec) { hideScannerFocusAlert(); return; }
+    const input = getScannerInput(sec);
+    if (!input || isScannerFocusBlocked() || document.activeElement === input) {
+        hideScannerFocusAlert();
+        return;
+    }
+    showScannerFocusAlert();
+}
+
+function setupScannerFocusAlert() {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // El manejador global de ESC (setupGlobalKeys) ya corrió y determinó el
+            // foco; revisamos justo después para detectar que dejó el buscador sin foco.
+            setTimeout(checkScannerFocusAlert, 120);
+            return;
+        }
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key === 'F2' || e.key === 'F4') return;
+        const printable = (e.key && e.key.length === 1) || e.key === 'Enter';
+        if (!printable) return;
+        const input = getScannerInput(getScannerSection());
+        if (!input || document.activeElement === input) return;
+        if (isScannerFocusBlocked()) return;
+        showScannerFocusAlert();
+    }, true);
+
+    document.addEventListener('focusin', () => {
+        const active = document.activeElement;
+        if (active && (active.id === 'posSearchInput' || active.id === 'adjustmentsSearchInput')) {
+            hideScannerFocusAlert();
+        }
+    }, true);
+}
+
 async function refreshSalesData() {
     await Promise.all([loadProducts(), loadLots(true)]);
 }
@@ -1919,49 +2019,92 @@ function getProductSearchKey(p) {
     return p._searchKey;
 }
 
+function productMatchesPrefix(p, query) {
+    const key = getProductSearchKey(p);
+    return key.startsWith(query) || key.indexOf('\u0000' + query) !== -1;
+}
+
+// Búsqueda "inteligente" para VENTAS: acepta nombre sin empezar por el prefijo
+// ("chips fuego" encuentra "Barcel Chips Fuego 170g"). Cada palabra del texto
+// debe aparecer en el nombre; un código numérico larga a match por prefijo de
+// barcode (mismo comportar de lector). Devuelve un score: menor = mejor match.
+function getProductSearchScore(p, query) {
+    const q = (query || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!q) return 99;
+    const name = (p.name || '').toLowerCase();
+    const bc = (p.barcode || '').toLowerCase();
+    if (bc && bc.startsWith(q)) return 0;                     // código (parcial)
+    if (name.startsWith(q)) return 1;                         // empieza igual
+    const tokens = q.split(' ');
+    for (const t of tokens) {
+        if (t.length <= 1) {
+            // letras sueltas: solo como inicio de palabra, para no inundar
+            if (!(name.startsWith(t) || (' ' + name).includes(' ' + t))) return 99;
+        } else if (!name.includes(t)) {
+            return 99;
+        }
+    }
+    const wordStarts = tokens.filter(t => (' ' + name).includes(' ' + t)).length;
+    return wordStarts === tokens.length ? 2 : 3;
+}
+
+function matchesSalesQuery(p, query) {
+    return getProductSearchScore(p, query) < 50;
+}
+
 function getFilteredProducts() {
     const ctx = getSearchContext();
     const query = (searchContextEls().input?.value || '').toLowerCase();
     const useCategory = ctx === 'sales' && posActiveCategory;
     if (!query && !useCategory && !posSearchFilters.inStockOnly && posSearchFilters.sort === 'name_asc') return [...products];
     const filtered = products.filter(p => {
-        const matchSearch = !query || getProductSearchKey(p).includes(query);
+        const matchSearch = !query
+            || (ctx === 'sales' ? matchesSalesQuery(p, query) : productMatchesPrefix(p, query));
         const matchCat = !useCategory || p.category_id === posActiveCategory;
         const matchStock = !posSearchFilters.inStockOnly || getAvailableStock(p.id) > 0;
         return matchSearch && matchCat && matchStock;
     });
     const sort = posSearchFilters.sort;
     return filtered.slice().sort((a, b) => {
-        switch (sort) {
-            case 'stock_desc': {
-                const da = Number(a.effective_stock) || 0;
-                const db = Number(b.effective_stock) || 0;
-                if (db !== da) return db - da;
-                return a.name.localeCompare(b.name, 'es');
-            }
-            case 'stock_asc': {
-                const da = Number(a.effective_stock) || 0;
-                const db = Number(b.effective_stock) || 0;
-                if (da !== db) return da - db;
-                return a.name.localeCompare(b.name, 'es');
-            }
-            case 'price_asc': {
-                const pa = Number(a.price) || 0;
-                const pb = Number(b.price) || 0;
-                if (pa !== pb) return pa - pb;
-                return a.name.localeCompare(b.name, 'es');
-            }
-            case 'price_desc': {
-                const pa = Number(a.price) || 0;
-                const pb = Number(b.price) || 0;
-                if (pa !== pb) return pb - pa;
-                return a.name.localeCompare(b.name, 'es');
-            }
-            case 'name_asc':
-            default:
-                return a.name.localeCompare(b.name, 'es');
+        if (query && ctx === 'sales') {
+            const sa = getProductSearchScore(a, query);
+            const sb = getProductSearchScore(b, query);
+            if (sa !== sb) return sa - sb;
         }
+        return compareProducts(a, b, sort);
     });
+}
+
+function compareProducts(a, b, sort) {
+    switch (sort) {
+        case 'stock_desc': {
+            const da = Number(a.effective_stock) || 0;
+            const db = Number(b.effective_stock) || 0;
+            if (db !== da) return db - da;
+            return a.name.localeCompare(b.name, 'es');
+        }
+        case 'stock_asc': {
+            const da = Number(a.effective_stock) || 0;
+            const db = Number(b.effective_stock) || 0;
+            if (da !== db) return da - db;
+            return a.name.localeCompare(b.name, 'es');
+        }
+        case 'price_asc': {
+            const pa = Number(a.price) || 0;
+            const pb = Number(b.price) || 0;
+            if (pa !== pb) return pa - pb;
+            return a.name.localeCompare(b.name, 'es');
+        }
+        case 'price_desc': {
+            const pa = Number(a.price) || 0;
+            const pb = Number(b.price) || 0;
+            if (pa !== pb) return pb - pa;
+            return a.name.localeCompare(b.name, 'es');
+        }
+        case 'name_asc':
+        default:
+            return a.name.localeCompare(b.name, 'es');
+    }
 }
 
 function onPosFilterChange() {
@@ -2191,6 +2334,106 @@ function confirmPriceAdd() {
     showToast('✓ Producto agregado', 'success');
 }
 
+let posAudioCtx = null;
+
+function ensurePosAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (typeof AC === 'undefined') return null;
+    if (!posAudioCtx) posAudioCtx = new AC();
+    if (posAudioCtx.state === 'suspended') posAudioCtx.resume();
+    return posAudioCtx;
+}
+
+function playPosTone(freq, startAt, dur, vol) {
+    const ctx = ensurePosAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + startAt;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+    gain.gain.setValueAtTime(vol, t0 + dur - 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+}
+
+// Advertencia: el código o nombre no existe en el catálogo.
+// Triple tono descendente "buzzer" 960→700→460 Hz para llamar la atención.
+function playNotFoundBeep() {
+    playPosTone(960, 0, 0.16, 0.38);
+    playPosTone(700, 0.22, 0.16, 0.38);
+    playPosTone(460, 0.44, 0.34, 0.42);
+}
+
+// Alerta de foco del escáner: doble toque ascendente que se repite mientras el
+// aviso siga en pantalla, para que el operador sepa que debe pulsar F2 (o F4).
+function playScannerAlertBeep() {
+    playPosTone(1046, 0, 0.13, 0.42);
+    playPosTone(1318, 0.18, 0.13, 0.42);
+    playPosTone(1046, 0.42, 0.13, 0.40);
+    playPosTone(1318, 0.60, 0.30, 0.44);
+}
+
+let scannerAlertBeepTimer = null;
+
+function stopScannerAlertReminder() {
+    if (scannerAlertBeepTimer) {
+        clearInterval(scannerAlertBeepTimer);
+        scannerAlertBeepTimer = null;
+    }
+}
+
+function scheduleScannerAlertReminder() {
+    stopScannerAlertReminder();
+    scannerAlertBeepTimer = setInterval(() => {
+        const el = document.getElementById('scannerFocusAlert');
+        if (!el || el.style.display !== 'flex') {
+            stopScannerAlertReminder();
+            return;
+        }
+        playScannerAlertBeep();
+    }, 8000);
+}
+
+// Alerta de "Selecciona precio/lote": triple toque repetido al estilo alarma
+// para que el operador se detenga y elija una opción aunque siga escaneando.
+function playLotSelectorAlert() {
+    playPosTone(1175, 0, 0.10, 0.48);
+    playPosTone(1175, 0.14, 0.10, 0.48);
+    playPosTone(1175, 0.28, 0.24, 0.50);
+}
+
+let lotAlertTimer = null;
+
+function stopLotAlertReminder() {
+    if (lotAlertTimer) {
+        clearInterval(lotAlertTimer);
+        lotAlertTimer = null;
+    }
+}
+
+function startLotAlertReminder() {
+    stopLotAlertReminder();
+    lotAlertTimer = setInterval(() => {
+        const el = document.getElementById('lotSelectorOverlay');
+        if (!el) {
+            stopLotAlertReminder();
+            return;
+        }
+        playLotSelectorAlert();
+    }, 4000);
+}
+
+function unlockPosAudio() {
+    ensurePosAudio();
+}
+window.addEventListener('pointerdown', unlockPosAudio, true);
+window.addEventListener('keydown', unlockPosAudio, true);
+
 function handlePosKey(e) {
     const ctx = getSearchContext();
     const search = searchContextEls().input;
@@ -2227,25 +2470,40 @@ function handlePosKey(e) {
         }
 
         if (looksLikeBarcode(query)) {
-            apiCall(`/products/barcode/${encodeURIComponent(query)}`).then(product => {
-                if (ctx === 'adjustments') {
-                    openAdjustmentProduct(product.id);
-                } else {
-                    addToCart(product.id);
-                }
-                search.value = '';
-                onPosSearchChange();
-                if (ctx === 'adjustments') {
-                    focusAdjustmentAmount();
-                } else {
-                    search.focus();
-                }
-            }).catch(() => {
-                search.value = '';
+            const normBc = query.endsWith('.0') ? query.slice(0, -2) : query;
+            const knownLocal = allProducts.some(p => String(p.barcode || '') === query || String(p.barcode || '') === normBc);
+            if (!knownLocal) {
+                // El código no está en el catálogo: suena AL INSTANTE (dentro del gesto Enter)
+                playNotFoundBeep();
                 showToast('Código no encontrado', 'error');
+                search.value = '';
+                posSelectedIndex = 0;
                 onPosSearchChange();
                 search.focus();
-            });
+            } else {
+                apiCall(`/products/barcode/${encodeURIComponent(query)}`).then(product => {
+                    if (ctx === 'adjustments') {
+                        openAdjustmentProduct(product.id);
+                    } else {
+                        addToCart(product.id);
+                    }
+                    search.value = '';
+                    posSelectedIndex = 0;
+                    onPosSearchChange();
+                    if (ctx === 'adjustments') {
+                        focusAdjustmentAmount();
+                    } else {
+                        search.focus();
+                    }
+                }).catch(() => {
+                    search.value = '';
+                    posSelectedIndex = 0;
+                    playNotFoundBeep();
+                    showToast('Código no encontrado', 'error');
+                    onPosSearchChange();
+                    search.focus();
+                });
+            }
         } else {
             const filtered = getFilteredProducts();
             if (filtered.length > 0 && filtered[posSelectedIndex]) {
@@ -2267,6 +2525,7 @@ function handlePosKey(e) {
                 }
             } else {
                 showToast('No se encontró el producto. Escribe el nombre o código correcto', 'warning');
+                playNotFoundBeep();
                 search.value = '';
                 posSelectedIndex = 0;
                 onPosSearchChange();
@@ -2436,13 +2695,6 @@ let productsStockFilter = 'all';
 const PRODUCTS_SEARCH_DEBOUNCE_MS = 60;
 let productsSearchTimer = null;
 
-function buildProductSearchKey(p) {
-    if (p._searchKey === undefined) {
-        p._searchKey = ((p.name || '') + '\u0000' + (p.barcode || '') + '\u0000' + (p.category_name || '')).toLowerCase();
-    }
-    return p._searchKey;
-}
-
 function getProductSearchRows() {
     const q = (document.getElementById('productSearch')?.value || '').toLowerCase().trim();
     const { key, dir } = productsSort;
@@ -2459,7 +2711,7 @@ function getProductSearchRows() {
     };
     const rows = productsTableData.filter(p => {
         const matchCat = !productsCategoryFilter || String(p.category_id) === String(productsCategoryFilter);
-        const matchQ = !q || buildProductSearchKey(p).includes(q);
+        const matchQ = !q || productMatchesPrefix(p, q);
         const stock = Number(p.effective_stock) || 0;
         const matchStock = productsStockFilter === 'all' ||
             (productsStockFilter === 'in_stock' && stock > 0) ||
@@ -2553,7 +2805,7 @@ async function loadProductsTable() {
             const cost = parseFloat(p.cost) || 0;
             const ganancia = price - cost;
             const margen = price > 0 ? (ganancia / price) * 100 : 0;
-            return { ...p, ganancia, margen, _searchKey: ((p.name || '') + '\u0000' + (p.barcode || '') + '\u0000' + (p.category_name || '')).toLowerCase() };
+            return { ...p, ganancia, margen, _searchKey: ((p.name || '') + '\u0000' + (p.barcode || '')).toLowerCase() };
         });
         populateCategoryFilter();
         renderVisibleProducts();
@@ -3580,8 +3832,8 @@ function getMovementMeta(t) {
         'sale':           { label: 'Venta',          color: '#d71920', sign: '−', stock: true, add: false },
         'return':         { label: 'Devolución',     color: '#4338ca', sign: '+', stock: true, add: true },
         'sale_cancelled': { label: 'Cancelación',    color: '#dc2626', sign: '+', stock: true, add: true },
-        'adjustment':     { label: 'Ajuste',         color: '#f59e0b', sign: '=', stock: true, add: 'diff' },
-        'adjust':         { label: 'Ajuste',         color: '#f59e0b', sign: '=', stock: true, add: 'diff' },
+        'adjustment':     { label: 'Ajuste',         color: '#f59e0b', sign: '+', stock: true, add: 'diff' },
+        'adjust':         { label: 'Ajuste',         color: '#f59e0b', sign: '+', stock: true, add: 'diff' },
         'transfer_out':   { label: 'Mov. salida',    color: '#8b5cf6', sign: '−', stock: true, add: false },
         'transfer_in':    { label: 'Mov. entrada',   color: '#3b82f6', sign: '+', stock: true, add: true },
         'product_created':{ label: 'Creación',       color: '#10b981', sign: '+', stock: false },
@@ -3592,6 +3844,16 @@ function getMovementMeta(t) {
         'lot_deleted':    { label: 'Lote elim.',     color: '#d71920', sign: '✕', stock: false }
     };
     return map[t] || { label: t, color: '#6b7280', sign: '', stock: true, add: true };
+}
+
+// Para movimientos "diff" (ajustes) el signo depende del valor guardado:
+// positivo = subió stock, negativo = bajó stock.
+function getMovementSign(meta, qty) {
+    if (meta && meta.add === 'diff') {
+        const v = Number(qty || 0);
+        return v > 0 ? '+' : (v < 0 ? '−' : '=');
+    }
+    return meta.sign;
 }
 
 function computeMovementTotals(movements) {
@@ -3710,7 +3972,7 @@ function movementsExportRow(m) {
         lot: m.batch_number || (m.lot_id ? '#'+m.lot_id : '—'),
         typeLabel: meta.label,
         typeRaw: t,
-        signedQty: meta.stock ? `${meta.sign}${Math.abs(qty).toFixed(2)}` : meta.sign,
+        signedQty: meta.stock ? `${getMovementSign(meta, qty)}${Math.abs(qty).toFixed(2)}` : meta.sign,
         qtyAbs: Math.abs(qty),
         stock: meta.stock,
         actor: m.actor_name || m.actor_username || '—',
@@ -4572,7 +4834,7 @@ function renderInventoryMovements(movements) {
         let afterCell;
         if (meta.stock) {
             const before = ti.before == null ? 0 : Number(ti.before);
-            qtyCell = `<span style="color:${meta.color};font-weight:600">${meta.sign}${Math.abs(qty).toFixed(2)}</span>`;
+            qtyCell = `<span style="color:${meta.color};font-weight:600">${getMovementSign(meta, qty)}${Math.abs(qty).toFixed(2)}</span>`;
             beforeQty = before.toFixed(2);
             afterCell = Number(ti.after).toFixed(2);
         } else {
@@ -4656,7 +4918,7 @@ function showProductHistory(productId, productName) {
             let afterCell;
             if (meta.stock) {
                 const before = ti.before == null ? 0 : Number(ti.before);
-                qtyCell = `<span style="color:${meta.color};font-weight:600">${meta.sign}${Math.abs(qty).toFixed(2)}</span>`;
+                qtyCell = `<span style="color:${meta.color};font-weight:600">${getMovementSign(meta, qty)}${Math.abs(qty).toFixed(2)}</span>`;
                 beforeQty = before.toFixed(2);
                 afterCell = Number(ti.after).toFixed(2);
             } else {
@@ -4841,15 +5103,6 @@ function addToCartOutOfStock(product, lot, price, reason, existingItem = null) {
         });
     }
 
-    showModal('⚠️ Venta sin stock', `
-        <p style="margin-bottom:8px">Vas a vender <strong>${escapeHtml(product.name)}</strong> sin existencias disponibles.</p>
-        <p style="font-size:13px;color:var(--text-light);margin-bottom:14px">Motivo: ${escapeHtml(reason)}</p>
-        <p>Se agregó al ticket y se registrará como venta sin inventario.</p>
-        <div style="display:flex;gap:8px;margin-top:14px">
-            <button class="btn btn-success" style="flex:1" onclick="closeModal()">OK, continuar</button>
-        </div>
-    `, { onClose: () => focusPosSearchBar() });
-
     cartSelectedIndex = cart.length - 1;
     renderCart();
 }
@@ -4969,6 +5222,9 @@ function openLotSelector(productId, lots, productPrice) {
         </div>
     `;
     document.body.appendChild(overlay);
+    overlay.classList.add('lot-attention');
+    playLotSelectorAlert();
+    startLotAlertReminder();
     setLotSelectorSelection(0);
     setTimeout(() => {
         const keyHandler = (e) => {
@@ -5023,6 +5279,7 @@ function moveLotSelectorSelection(dir) {
 }
 
 function closeLotSelector() {
+    stopLotAlertReminder();
     const el = document.getElementById('lotSelectorOverlay');
     if (el) {
         if (el._keyHandler) document.removeEventListener('keydown', el._keyHandler, true);
@@ -5383,14 +5640,22 @@ function renderCart() {
         const remaining = item.lot_id
             ? getEffectiveLotStock(item.id, item.lot_id, item.lot_quantity || 0)
             : getEffectiveBaseStock(item.id);
-        const overStock = item.quantity > remaining;
-        const oosTag = item.out_of_stock ? ' <span class="badge badge-danger" style="font-size:10px;margin-left:4px">SIN STOCK</span>' : '';
-        const stockLabel = remaining > 0
-            ? `<span class="cart-stock ${overStock ? 'over' : ''}" title="En stock quedan ${remaining} de ${totalStock}">📦 ${remaining} / ${totalStock}</span>${oosTag}`
-            : `<span class="cart-stock out" title="Sin existencias">📦 0 / ${totalStock}</span>${oosTag}`;
+        const scopeUsage = item.lot_id
+            ? getLotCartUsage(item.id, item.lot_id)
+            : getBaseCartUsage(item.id);
+        const overInventory = scopeUsage > totalStock;
+        const lastUnit = !overInventory && item.quantity > 0 && remaining <= 0 && totalStock > 0;
+        const stockClass = overInventory ? 'invout' : (lastUnit ? 'last' : '');
+        const oosTag = overInventory
+            ? ' <span class="badge badge-danger" style="font-size:10px;margin-left:4px;background:#dc2626;color:#fff">SIN INVENTARIO</span>'
+            : (lastUnit ? ' <span class="badge badge-danger" style="font-size:10px;margin-left:4px">ÚLTIMAS</span>' : '');
+        const stockTitle = overInventory ? 'Vendiendo fuera de inventario'
+            : (lastUnit ? 'Último(s) producto(s) en stock: se agotará después de esta venta'
+            : `En stock quedan ${Math.max(0, remaining)} de ${totalStock}`);
+        const stockLabel = `<span class="cart-stock ${stockClass}" title="${stockTitle}">📦 ${Math.max(0, remaining)} / ${totalStock}</span>${oosTag}`;
 
         return `
-        <tr class="${index === cartSelectedIndex ? 'selected' : ''} ${overStock ? 'over-stock' : ''}" data-index="${index}">
+        <tr class="${index === cartSelectedIndex ? 'selected' : ''} ${overInventory ? 'over-inv' : (lastUnit ? 'last-unit' : '')}" data-index="${index}">
             <td class="col-num">${index + 1}</td>
             <td class="col-product">
                 <div class="cart-product-name">${escapeHtml(item.name)}</div>
@@ -5836,21 +6101,6 @@ function processSale() {
 async function openPaymentModal() {
     if (cart.length === 0) {
         showToast('Agrega productos al carrito', 'error');
-        return;
-    }
-    const overstock = getOverstockItems();
-    if (overstock.length > 0 && saleAttemptCount < 1) {
-        saleAttemptCount++;
-        const list = overstock.map(i => `<li><strong>${escapeHtml(i.name)}</strong>: tienes ${i.available_stock || 0} pero vendes ${i.quantity}</li>`).join('');
-        showModal('⚠️ Sin existencias suficientes', `
-            <p>Los siguientes productos no tienen existencias suficientes:</p>
-            <ul style="text-align:left;padding-left:20px;margin:12px 0">${list}</ul>
-            <p style="color:#d71920"><strong>Si vuelves a presionar COBRAR se procesará la venta sin inventario.</strong></p>
-            <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn btn-primary primary" id="overstockConfirmBtn" style="flex:1" onclick="closeModal();openPaymentModal()">Cobrar sin stock</button>
-            </div>
-        `, { onClose: () => focusPosSearchBar(), primaryFocusId: 'overstockConfirmBtn' });
         return;
     }
     refreshActiveTerminal();
@@ -6372,7 +6622,7 @@ async function confirmPayment() {
 
     const hasOutOfStock = cart.some(i => i.out_of_stock);
     const overstock = getOverstockItems();
-    const forceNoStock = hasOutOfStock || (overstock.length > 0 && saleAttemptCount >= 1);
+    const forceNoStock = hasOutOfStock || overstock.length > 0;
 
     closePaymentModal();
     const card = document.getElementById('posTotalCard');
