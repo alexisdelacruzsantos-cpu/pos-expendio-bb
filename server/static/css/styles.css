@@ -5195,7 +5195,7 @@ td.name-cell {
 
 .lot-search-item {
     display: grid;
-    grid-template-columns: 110px 1fr 80px;
+    grid-template-columns: 110px 1fr auto 80px;
     gap: 10px;
     align-items: center;
     padding: 8px 10px;
@@ -5234,6 +5234,26 @@ td.name-cell {
 .lot-search-cat {
     font-size: 11px;
     color: var(--text-light);
+}
+
+.lot-search-stock {
+    min-width: 46px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.lot-search-stock.ok {
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.lot-search-stock.low {
+    color: var(--danger);
+    background: rgba(215, 25, 32, 0.12);
 }
 
 .lot-search-price {

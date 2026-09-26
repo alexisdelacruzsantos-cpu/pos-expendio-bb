@@ -8844,13 +8844,25 @@ function handleLotProductKey(e) {
     }
 }
 
-function getLotFilteredProducts() {
-    const q = (document.getElementById('lotProductSearch')?.value || '').toLowerCase().trim();
-    if (!q) return [];
+function getLotGeneralStock(p) {
+    if (!p) return 0;
+    return parseFloat(p.stock) || 0;
+}
+
+function getLotTextMatches(q) {
+    const query = (q || '').toLowerCase().trim();
+    if (!query) return [];
     return allProducts.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.barcode && p.barcode.toLowerCase().includes(q))
-    ).slice(0, 30);
+        p.name.toLowerCase().includes(query) ||
+        (p.barcode && p.barcode.toLowerCase().includes(query))
+    );
+}
+
+function getLotFilteredProducts() {
+    const q = (document.getElementById('lotProductSearch')?.value || '').trim();
+    return getLotTextMatches(q)
+        .filter(p => getLotGeneralStock(p) > 0)
+        .slice(0, 30);
 }
 
 function renderLotProductSearch() {
@@ -8858,28 +8870,44 @@ function renderLotProductSearch() {
     if (!overlay) return;
     const filtered = getLotFilteredProducts();
     const q = (document.getElementById('lotProductSearch')?.value || '').trim();
-    if (!q || filtered.length === 0) {
+    if (!q) {
         overlay.style.display = 'none';
-        if (!q) overlay.innerHTML = '';
-        else overlay.innerHTML = '<div class="lot-search-empty">Sin resultados</div>';
+        overlay.innerHTML = '';
+        return;
+    }
+    if (filtered.length === 0) {
+        overlay.style.display = 'block';
+        const msg = getLotTextMatches(q).length > 0
+            ? 'Sin existencias en stock general'
+            : 'Sin resultados';
+        overlay.innerHTML = `<div class="lot-search-empty">${msg}</div>`;
         return;
     }
     overlay.style.display = 'block';
-    overlay.innerHTML = filtered.map((p, i) => `
+    overlay.innerHTML = filtered.map((p, i) => {
+        const stock = getLotGeneralStock(p);
+        const low = stock <= 1;
+        return `
         <div class="lot-search-item ${i === lotSearchSelectedIndex ? 'selected' : ''}" onclick="selectLotProduct(${p.id})">
             <div class="lot-search-code">${escapeHtml(p.barcode || '—')}</div>
             <div class="lot-search-info">
                 <div class="lot-search-name">${escapeHtml(p.name)}</div>
                 <div class="lot-search-cat">${escapeHtml(p.category_name || 'Sin categoría')}</div>
             </div>
+            <div class="lot-search-stock ${low ? 'low' : 'ok'}" title="Existencias en stock general (disponible para crear el lote)">${formatNumber(stock)}</div>
             <div class="lot-search-price">$${parseFloat(p.price).toFixed(2)}</div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 async function tryLotBarcodeLookup(barcode) {
     try {
         const product = await apiCall(`/products/barcode/${encodeURIComponent(barcode)}`);
+        if (getLotGeneralStock(product) <= 0) {
+            showToast(`"${product.name}" no tiene existencias en stock general`, 'error');
+            return;
+        }
         selectLotProduct(product.id);
     } catch (e) {
         const filtered = getLotFilteredProducts();
@@ -9142,8 +9170,11 @@ async function showAdjustStockModal(lotId) {
     } catch (_) {}
     const curQty = parseFloat(lot.current_quantity) || 0;
     const newMax = curQty + baseStock;
+    const curPrice = parseFloat(lot.sale_price != null ? lot.sale_price : lot.price) || 0;
+    const prodPrice = parseFloat(lot.price) || 0;
+    const priceDiff = curPrice - prodPrice;
 
-    showModal('Ajustar Stock - ' + lot.product_name, `
+    showModal('Ajustar Lote - ' + lot.product_name, `
         <form id="adjustForm" onsubmit="adjustLotStock(event, ${lotId})">
             <div class="form-group">
                 <label>Stock Actual</label>
@@ -9153,6 +9184,14 @@ async function showAdjustStockModal(lotId) {
                 <label>Nueva Cantidad *</label>
                 <input type="number" name="current_quantity" step="1" min="0" max="${newMax}" value="${curQty}" required>
                 <small style="color:#6b7280;font-size:11px">Máximo: ${newMax} (incluye ${baseStock} disponible(s) del stock general). Si bajas la cantidad, las piezas regresan al stock general.</small>
+            </div>
+            <div class="form-group">
+                <label>Precio de venta del lote *</label>
+                <div class="currency-input">
+                    <span class="currency-symbol">$</span>
+                    <input type="number" name="sale_price" step="0.01" min="0.01" value="${curPrice.toFixed(2)}" required>
+                </div>
+                <small class="lot-price-hint">Precio original del producto: $${prodPrice.toFixed(2)}${Math.abs(priceDiff) < 0.01 ? '' : ` · Lote: $${curPrice.toFixed(2)} (${priceDiff > 0 ? '+' : '−'}$${Math.abs(priceDiff).toFixed(2)})`}</small>
             </div>
             <div class="form-group">
                 <label>Motivo del Ajuste</label>
@@ -9175,17 +9214,48 @@ async function adjustLotStock(e, lotId) {
         return;
     }
 
+    const lot = allLots.find(l => l.id === lotId);
+    const curQty = parseFloat(lot?.current_quantity) || 0;
+    const curPrice = parseFloat(lot?.sale_price != null ? lot.sale_price : lot?.price) || 0;
+    const newPrice = parseFloat(formData.get('sale_price'));
+    if (!isFinite(newPrice) || newPrice <= 0) {
+        showToast('El precio de venta del lote debe ser mayor a 0', 'error');
+        return;
+    }
+
+    const reason = (formData.get('reason') || '').trim();
+    const qtyChanged = Math.abs(newQty - curQty) > 0.0001;
+    const priceChanged = Math.abs(newPrice - curPrice) > 0.0001;
+    if (!qtyChanged && !priceChanged) {
+        showToast('No hay cambios que aplicar', 'info');
+        return;
+    }
+
+    const saved = [];
     try {
-        const result = await apiCall('/lots/adjust-stock', 'POST', {
-            lot_id: lotId,
-            current_quantity: newQty,
-            reason: formData.get('reason') || ''
-        });
-        showToast(`Stock ajustado: ${result.previous} → ${result.new} · Stock general: ${result.base_previous} → ${result.base_new}`, 'success');
+        if (qtyChanged) {
+            const result = await apiCall('/lots/adjust-stock', 'POST', {
+                lot_id: lotId,
+                current_quantity: newQty,
+                reason: reason
+            });
+            saved.push(`Stock ajustado: ${result.previous} → ${result.new} · Stock general: ${result.base_previous} → ${result.base_new}`);
+        }
+        if (priceChanged) {
+            await apiCall(`/lots/${lotId}`, 'PUT', { sale_price: newPrice });
+            saved.push(`Precio: $${curPrice.toFixed(2)} → $${newPrice.toFixed(2)}`);
+        }
+        showToast(saved.join(' · '), 'success');
         closeModal();
         await Promise.all([loadLots(), loadLotsCut(), loadProducts()]);
     } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+        let msg = 'Error';
+        try { msg = JSON.parse(error.message).error || error.message; } catch {}
+        showToast(saved.length ? `Guardado parcial (${saved.join(' · ')}). ${msg}` : msg, 'error');
+        if (saved.length) {
+            closeModal();
+            await Promise.all([loadLots(), loadLotsCut(), loadProducts()]);
+        }
     }
 }
 
