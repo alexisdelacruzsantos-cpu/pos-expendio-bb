@@ -3,12 +3,17 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 import sys
 import os
+from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import get_db_path
 from utils.database import Database
 from utils.permissions import is_admin
 
 reports_bp = Blueprint('reports', __name__)
+
+# Mermas: no hay tabla propia, se derivan de los movimientos negativos.
+LOSS_MOVEMENT_TYPES = ('adjustment', 'shrinkage', 'loss')
+LOSSES_RESET_KEY = 'losses_reset_from'
 
 @reports_bp.route('/expiry-alert', methods=['GET'])
 @jwt_required()
@@ -328,6 +333,12 @@ def low_stock_detail():
         return jsonify({'error': str(e)}), 500
 
 
+def _losses_reset_from(db):
+    """Marca de reinicio del apartado de mermas ('' si nunca se reinició)."""
+    row = db.fetch_one('SELECT value FROM settings WHERE key = ?', (LOSSES_RESET_KEY,))
+    return (row[0] if row else '') or ''
+
+
 @reports_bp.route('/losses-by-product', methods=['GET'])
 @jwt_required()
 def losses_by_product():
@@ -336,23 +347,96 @@ def losses_by_product():
     try:
         db = Database(get_db_path())
         limit = int(request.args.get('limit', 10))
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        reset_from = _losses_reset_from(db)
 
-        movements = db.fetch_all('''
+        clauses = ['p.active = 1']
+        params = []
+        if date_from:
+            clauses.append('DATE(im.created_at) >= DATE(?)')
+            params.append(date_from)
+        if reset_from:
+            clauses.append('im.created_at >= ?')
+            params.append(reset_from)
+        if date_to:
+            clauses.append('DATE(im.created_at) <= DATE(?)')
+            params.append(date_to)
+
+        placeholders = ','.join('?' for _ in LOSS_MOVEMENT_TYPES)
+        movements = db.fetch_all(f'''
             SELECT p.id, p.name, p.barcode,
-                   SUM(CASE WHEN im.movement_type IN ('adjustment', 'shrinkage', 'loss')
-                             AND im.quantity < 0 THEN ABS(im.quantity) * p.cost ELSE 0 END) as total_loss,
-                   SUM(CASE WHEN im.movement_type IN ('adjustment', 'shrinkage', 'loss')
-                             AND im.quantity < 0 THEN ABS(im.quantity) ELSE 0 END) as total_units_loss
+                   SUM(CASE WHEN im.movement_type IN ({placeholders})
+                              AND im.quantity < 0 THEN ABS(im.quantity) * p.cost ELSE 0 END) as total_loss,
+                   SUM(CASE WHEN im.movement_type IN ({placeholders})
+                              AND im.quantity < 0 THEN ABS(im.quantity) ELSE 0 END) as total_units_loss
             FROM inventory_movements im
             JOIN products p ON im.product_id = p.id
-            WHERE p.active = 1
+            WHERE {' AND '.join(clauses)}
             GROUP BY p.id
             HAVING total_loss > 0
             ORDER BY total_loss DESC
             LIMIT ?
-        ''', (limit,))
+        ''', (*LOSS_MOVEMENT_TYPES, *LOSS_MOVEMENT_TYPES, *params, limit))
 
-        return jsonify([dict(m) for m in movements]), 200
+        hidden = db.fetch_one(f'''
+            SELECT COUNT(*)
+            FROM inventory_movements im
+            JOIN products p ON im.product_id = p.id
+            WHERE p.active = 1 AND im.movement_type IN ({placeholders})
+              AND im.quantity < 0 AND im.created_at < ?
+        ''', (*LOSS_MOVEMENT_TYPES, reset_from))[0] if reset_from else 0
+
+        return jsonify({
+            'items': [dict(m) for m in movements],
+            'reset_from': reset_from or None,
+            'hidden_records': hidden,
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/losses/reset', methods=['POST'])
+@jwt_required()
+def reset_losses():
+    """Marca el inicio de un nuevo periodo de mermas (no borra movimientos)."""
+    if not is_admin():
+        return jsonify({'error': 'No autorizado'}), 403
+    try:
+        db = Database(get_db_path())
+        data = request.get_json(silent=True) or {}
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        previous = _losses_reset_from(db)
+
+        if data.get('undo'):
+            with db.write():
+                db.execute('DELETE FROM settings WHERE key = ?', (LOSSES_RESET_KEY,))
+            return jsonify({
+                'message': 'Reinicio de mermas deshecho: se muestran todas las mermas',
+                'reset_from': None,
+                'previous': previous or None,
+            }), 200
+
+        placeholders = ','.join('?' for _ in LOSS_MOVEMENT_TYPES)
+        hidden = db.fetch_one(f'''
+            SELECT COUNT(*) FROM inventory_movements im
+            JOIN products p ON im.product_id = p.id
+            WHERE p.active = 1 AND im.movement_type IN ({placeholders})
+              AND im.quantity < 0 AND im.created_at < ?
+        ''', (*LOSS_MOVEMENT_TYPES, now))[0]
+
+        with db.write():
+            db.execute('''
+                INSERT INTO settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            ''', (LOSSES_RESET_KEY, now))
+
+        return jsonify({
+            'message': 'Mermas reiniciadas: el reporte inicia en este momento',
+            'reset_from': now,
+            'hidden_records': hidden,
+        }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -523,7 +607,7 @@ def inventory_cut():
     try:
         db = Database(get_db_path())
         products = db.fetch_all('''
-            SELECT p.id, p.name, p.barcode, p.price, p.cost, p.stock,
+            SELECT p.id, p.name, p.barcode, p.price, p.cost, p.stock, p.category_id,
                    c.name as category_name, c.color as category_color
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id

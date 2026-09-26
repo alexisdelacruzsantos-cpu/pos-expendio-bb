@@ -3259,30 +3259,35 @@ function renderSalesReport(data) {
 
     const payNames = { cash: '💵 Efectivo', card: '💳 Tarjeta', mixed: '🔀 Mixto' };
     const payBody = document.getElementById('rpPaymentsBody');
-    if (!data.payments || !data.payments.length) {
-        payBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
-    } else {
-        payBody.innerHTML = data.payments.map(p => `
+    if (payBody) {
+        if (!data.payments || !data.payments.length) {
+            payBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
+        } else {
+            payBody.innerHTML = data.payments.map(p => `
             <tr>
                 <td>${payNames[p.payment_method] || escapeHtml(p.payment_method)}</td>
                 <td>${p.count}</td>
                 <td>$${Number(p.amount || 0).toFixed(2)}</td>
             </tr>`).join('');
+        }
     }
 
     const cashBody = document.getElementById('rpCashiersBody');
-    if (!data.cashiers || !data.cashiers.length) {
-        cashBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
-    } else {
-        cashBody.innerHTML = data.cashiers.map(c => `
-            <tr>
-                <td>${escapeHtml(c.cashier_name)}</td>
-                <td>${c.sales}</td>
-                <td>$${Number(c.amount || 0).toFixed(2)}</td>
-            </tr>`).join('');
+    if (cashBody) {
+        if (!data.cashiers || !data.cashiers.length) {
+            cashBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
+        } else {
+            cashBody.innerHTML = data.cashiers.map(c => `
+                <tr>
+                    <td>${escapeHtml(c.cashier_name)}</td>
+                    <td>${c.sales}</td>
+                    <td>$${Number(c.amount || 0).toFixed(2)}</td>
+                </tr>`).join('');
+        }
     }
 
     const topBody = document.getElementById('rpTopProductsBody');
+    if (!topBody) return;
     if (!data.top_products || !data.top_products.length) {
         topBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px">Sin ventas en el periodo</td></tr>';
     } else {
@@ -3496,9 +3501,90 @@ async function loadExpiryReport() {
     }
 }
 
+function setLossesRange(kind) {
+    const fromEl = document.getElementById('lossesDateFrom');
+    const toEl = document.getElementById('lossesDateTo');
+    if (kind === 'all') {
+        fromEl.value = '';
+        toEl.value = '';
+        loadLossesReport();
+        return;
+    }
+    const end = new Date();
+    let start = new Date(end);
+    if (kind === 'yesterday') start.setDate(start.getDate() - 1);
+    else if (kind === 'week') start.setDate(start.getDate() - 6);
+    else if (kind === 'month') start.setDate(1);
+    else if (kind === 'lastmonth') {
+        end.setDate(0);
+        start = new Date(end.getFullYear(), end.getMonth(), 1);
+    } else if (kind === 'year') {
+        start = new Date(end.getFullYear(), 0, 1);
+    }
+    fromEl.value = localDateStr(start);
+    toEl.value = localDateStr(end);
+    loadLossesReport();
+}
+
+function applyLossesRange() {
+    loadLossesReport();
+}
+
+function confirmResetLosses() {
+    const hidden = document.getElementById('lossesHiddenCount');
+    const detail = hidden && Number(hidden.dataset.count) > 0
+        ? `AHORA ${hidden.dataset.count} merma(s) del periodo anterior dejarán de aparecer en este reporte.`
+        : '';
+    showConfirmDialog({
+        title: '⚠️ Reiniciar mermas',
+        message: 'El reporte de Mermas volverá a contar desde este momento, así que desaparecerán los productos del periodo anterior. '
+            + 'Los movimientos de inventario NO se borran: siguen en el Historial de Movimientos. '
+            + 'Puedes deshacerlo después. ' + detail + ' ¿Deseas continuar?',
+        confirmText: 'Sí, reiniciar',
+        cancelText: 'Cancelar',
+        danger: true,
+        onConfirm: async () => {
+            try {
+                showToast('Reiniciando…', 'info');
+                const res = await apiCall('/reports/losses/reset', 'POST');
+                showToast(res.message, 'success');
+                await loadLossesReport();
+            } catch (e) {
+                showToast('Error al reiniciar mermas: ' + e.message, 'error');
+            }
+        }
+    });
+}
+
+function undoResetLosses() {
+    showConfirmDialog({
+        title: 'Deshacer reinicio',
+        message: 'El reporte volverá a mostrar todas las mermas, incluidas las de periodos anteriores. '
+            + 'Los movimientos de inventario nunca se borraron. ¿Deseas continuar?',
+        confirmText: 'Sí, mostrar todas',
+        cancelText: 'Cancelar',
+        onConfirm: async () => {
+            try {
+                const res = await apiCall('/reports/losses/reset', 'POST', { undo: true });
+                showToast(res.message, 'success');
+                await loadLossesReport();
+            } catch (e) {
+                showToast('Error al deshacer el reinicio: ' + e.message, 'error');
+            }
+        }
+    });
+}
+
 async function loadLossesReport() {
     try {
-        const data = await apiCall('/reports/losses-by-product?limit=50').catch(() => null) || [];
+        const from = document.getElementById('lossesDateFrom')?.value || '';
+        const to = document.getElementById('lossesDateTo')?.value || '';
+        const params = new URLSearchParams({ limit: '50' });
+        if (from) params.set('date_from', from);
+        if (to) params.set('date_to', to);
+        const res = await apiCall(`/reports/losses-by-product?${params.toString()}`).catch(() => null)
+            || { items: [] };
+        const data = Array.isArray(res) ? res : (res.items || []);
         let total = 0;
         const body = document.getElementById('rpLossesBody');
         if (!data.length) {
@@ -3515,6 +3601,18 @@ async function loadLossesReport() {
             }).join('');
         }
         document.getElementById('rpLossTotal').textContent = '$' + total.toFixed(2);
+
+        const note = document.getElementById('lossesResetNote');
+        const undoBtn = document.getElementById('lossesUndoBtn');
+        const hiddenCount = Number(res.hidden_records || 0);
+        if (res.reset_from) {
+            note.innerHTML = `Contando desde <b>${escapeHtml(res.reset_from)}</b>`
+                + (hiddenCount > 0 ? ` · ${hiddenCount} merma(s) anterior(es) ocultas` : '');
+            undoBtn.style.display = '';
+        } else {
+            note.innerHTML = 'Se muestran todas las mermas registradas';
+            undoBtn.style.display = 'none';
+        }
     } catch (e) {
         console.error('Error cargando mermas', e);
     }
@@ -8454,9 +8552,13 @@ async function loadLots(silent = false) {
 }
 
 let lotsCutData = [];
+let lotsCutCategoryFilter = '';
+const NO_CATEGORY_KEY = 'none';
+
 async function loadLotsCut() {
     try {
         lotsCutData = await apiCall('/reports/inventory-cut');
+        populateLotsCutCategoryFilter();
         renderLotsCut();
     } catch (error) {
         console.warn('Error al cargar corte', error);
@@ -8473,11 +8575,49 @@ function switchLotsTab(tab) {
 let existenciasSelectedIndex = 0;
 let existenciasFiltered = [];
 
+function getLotsCutCategoryKey(p) {
+    return p.category_id ? String(p.category_id) : NO_CATEGORY_KEY;
+}
+
+function populateLotsCutCategoryFilter() {
+    const sel = document.getElementById('lotsCutCategoryFilter');
+    if (!sel) return;
+    const cats = new Map();
+    let hasNoCategory = false;
+    lotsCutData.forEach(p => {
+        if (p.category_id && p.category_name) {
+            cats.set(String(p.category_id), p.category_name);
+        } else if (!p.category_id) {
+            hasNoCategory = true;
+        }
+    });
+    const options = [...cats.entries()]
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`);
+    if (hasNoCategory) options.push(`<option value="${NO_CATEGORY_KEY}">Sin categoría</option>`);
+
+    sel.innerHTML = '<option value="">Todas las categorías</option>' + options.join('');
+    if (lotsCutCategoryFilter && sel.querySelector(`option[value="${CSS.escape(lotsCutCategoryFilter)}"]`)) {
+        sel.value = lotsCutCategoryFilter;
+    } else {
+        lotsCutCategoryFilter = '';
+        sel.value = '';
+    }
+}
+
+function filterLotsCutByCategory() {
+    lotsCutCategoryFilter = document.getElementById('lotsCutCategoryFilter')?.value || '';
+    existenciasSelectedIndex = 0;
+    renderLotsCut();
+}
+
 function getExistenciasRows() {
     const q = (document.getElementById('lotsCutSearch')?.value || '').toLowerCase().trim();
-    const inStock = lotsCutData.filter(p => (Number(p.effective_stock) || 0) > 0);
-    if (!q) return inStock;
-    return inStock.filter(p =>
+    const cat = lotsCutCategoryFilter;
+    let rows = lotsCutData.filter(p => (Number(p.effective_stock) || 0) > 0);
+    if (cat) rows = rows.filter(p => getLotsCutCategoryKey(p) === cat);
+    if (!q) return rows;
+    return rows.filter(p =>
         p.name.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.category_name && p.category_name.toLowerCase().includes(q)));
@@ -8500,7 +8640,14 @@ function renderLotsCut() {
     setEl('cutStatValue', '$' + totalValue.toFixed(2));
 
     if (filtered.length === 0) {
-        list.innerHTML = '<tr><td colspan="7" class="ex-empty">No hay productos con existencias.</td></tr>';
+        const sel = document.getElementById('lotsCutCategoryFilter');
+        const catName = lotsCutCategoryFilter
+            ? (sel?.selectedOptions?.[0]?.textContent || 'esa categoría')
+            : '';
+        const msg = catName
+            ? `No hay productos con existencias en «${escapeHtml(catName)}».`
+            : 'No hay productos con existencias.';
+        list.innerHTML = `<tr><td colspan="7" class="ex-empty">${msg}</td></tr>`;
         existenciasSelectedIndex = 0;
         return;
     }

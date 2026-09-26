@@ -382,6 +382,7 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date)",
             "CREATE INDEX IF NOT EXISTS idx_sales_cashier ON sales(cashier_id)",
             "CREATE INDEX IF NOT EXISTS idx_inv_moves_product ON inventory_movements(product_id)",
+            "CREATE INDEX IF NOT EXISTS idx_inv_moves_type_date ON inventory_movements(movement_type, created_at)",
             "CREATE INDEX IF NOT EXISTS idx_returns_sale ON returns(sale_id)",
         ]
         for idx in indexes:

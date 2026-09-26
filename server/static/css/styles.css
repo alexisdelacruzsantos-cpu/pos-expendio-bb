@@ -5460,6 +5460,7 @@ td.name-cell {
     display: flex;
     gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
     margin-bottom: 14px;
 }
 
@@ -5471,6 +5472,24 @@ td.name-cell {
 
 .ex-toolbar .ex-search .inv-search-input {
     width: 100%;
+}
+
+.ex-cat-select {
+    flex: 0 0 auto;
+    min-width: 190px;
+    max-width: 280px;
+    padding: 9px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.ex-cat-select:focus {
+    outline: none;
+    border-color: var(--primary);
 }
 
 @media (max-width: 1280px) {

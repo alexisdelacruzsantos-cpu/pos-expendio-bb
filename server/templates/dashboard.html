@@ -379,6 +379,9 @@
                             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                             oninput="renderLotsCut()" onkeydown="handleExistenciasKey(event)">
                     </div>
+                    <select id="lotsCutCategoryFilter" class="ex-cat-select" onchange="filterLotsCutByCategory()" title="Filtrar por categoría">
+                        <option value="">Todas las categorías</option>
+                    </select>
                     <button class="btn btn-secondary btn-sm" onclick="loadLotsCut()" title="Actualizar">🔄</button>
                 </div>
                 <div class="ex-stats" id="lotsCutStats">
@@ -870,6 +873,20 @@
 
                 <!-- MERMAS -->
                 <div class="report-content" id="reportLossesTab" style="display:none">
+                    <div class="report-toolbar">
+                        <input type="date" id="lossesDateFrom" class="date-filter-input" title="Desde">
+                        <input type="date" id="lossesDateTo" class="date-filter-input" title="Hasta">
+                        <button class="btn btn-sm btn-primary" onclick="applyLossesRange()">Aplicar</button>
+                        <button class="btn btn-sm" onclick="setLossesRange('today')">Hoy</button>
+                        <button class="btn btn-sm" onclick="setLossesRange('week')">7 días</button>
+                        <button class="btn btn-sm" onclick="setLossesRange('month')">Mes Actual</button>
+                        <button class="btn btn-sm" onclick="setLossesRange('lastmonth')">Mes Anterior</button>
+                        <button class="btn btn-sm" onclick="setLossesRange('all')">Todo</button>
+                        <span style="flex:1"></span>
+                        <button class="btn btn-sm btn-danger" id="lossesUndoBtn" onclick="undoResetLosses()" style="display:none">↩ Deshacer reinicio</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmResetLosses()">♻ Reiniciar mermas</button>
+                    </div>
+                    <div class="report-detail" id="lossesResetNote" style="margin:0 0 10px">Se muestran todas las mermas registradas</div>
                     <div class="reports-grid">
                         <div class="report-card danger">
                             <h3>💸 Mermas totales</h3>
