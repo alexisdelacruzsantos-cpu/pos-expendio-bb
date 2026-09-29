@@ -1366,12 +1366,17 @@ body>* {
 }
 
 .pos-cart-count-label {
-    font-size: 14px;
+    font-size: 17px;
     color: var(--text);
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.pos-cart-count-label #posCartCount {
+    font-size: 20px;
+    font-weight: 700;
 }
 
 .pos-clear-cart-btn {
@@ -3864,6 +3869,38 @@ td.name-cell {
     line-height: 1;
 }
 
+.payment-card-hero-label {
+    margin-bottom: 2px;
+}
+
+.payment-card-hero-amount {
+    color: #157347;
+}
+
+.payment-card-hero-rows {
+    max-width: 420px;
+    margin: 12px auto 0;
+    padding-top: 8px;
+    border-top: 1px dashed #86efac;
+    font-size: 13px;
+    text-align: left;
+}
+
+.payment-card-hero-rows .pay-fee-row strong {
+    font-size: 15px;
+}
+
+.payment-card-hero .pay-fee-note,
+.payment-card-hero .pay-fee-warn {
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.payment-card-hero .pay-fee-warn {
+    margin-top: 8px;
+}
+
 .payment-methods {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -4001,17 +4038,6 @@ td.name-cell {
     font-weight: 800;
 }
 
-.pay-fee-box {
-    max-width: 340px;
-    width: 100%;
-    margin: 2px auto 0;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 10px;
-    padding: 8px 16px;
-    font-size: 13px;
-}
-
 .pay-fee-row {
     display: flex;
     justify-content: space-between;
@@ -4028,18 +4054,6 @@ td.name-cell {
 
 .pay-fee-row.pay-fee-row-neg strong {
     color: #b91c1c;
-}
-
-.pay-fee-row.pay-fee-row-total {
-    border-top: 1px dashed #86efac;
-    margin-top: 4px;
-    padding-top: 7px;
-    font-weight: 700;
-}
-
-.pay-fee-row.pay-fee-row-total strong {
-    font-size: 17px;
-    color: #157347;
 }
 
 .pay-fee-note {
@@ -4065,6 +4079,25 @@ td.name-cell {
 }
 
 .pay-input-group.has-fee input:focus {
+    border-color: #22c55e;
+}
+
+.pay-input-group input[readonly] {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #374151;
+    cursor: default;
+}
+
+.pay-input-group.has-fee input[readonly] {
+    border-color: #86efac;
+}
+
+.pay-input-group input[readonly]:focus {
+    border-color: #9ca3af;
+}
+
+.pay-input-group.has-fee input[readonly]:focus {
     border-color: #22c55e;
 }
 
@@ -6341,11 +6374,6 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
-}
-
-.inv-history-header h3 {
-    margin: 0;
-    font-size: 18px;
 }
 
 .mh-results-count {

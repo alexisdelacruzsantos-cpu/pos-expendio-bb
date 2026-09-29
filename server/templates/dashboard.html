@@ -278,10 +278,6 @@
                                     <span class="pos-history-btn-icon">🧾</span>
                                     <span class="pos-history-btn-text">Ventas y devoluciones</span>
                                 </button>
-                                <button class="pos-history-btn" onclick="openPriceChecker()" title="Verificar precio (F9)">
-                                    <span class="pos-history-btn-icon">💰</span>
-                                    <span class="pos-history-btn-text">F9 Verificar precio</span>
-                                </button>
                                 <div class="pos-total-card" id="posTotalCard" role="button" tabindex="0" onclick="openPaymentModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPaymentModal();}">
                                     <div class="pos-total-big" id="posTotal">$0.00</div>
                                     <div class="pos-total-hint">Click, F12 o F2 para cobrar</div>
@@ -412,7 +408,6 @@
             <!-- Historial de Movimientos (independiente de Inventario) -->
             <section class="content-section" id="inventory-historySection">
                 <div class="inv-history-header">
-                    <h3><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg> Historial de Movimientos</h3>
                     <span class="mh-results-count" id="mhResultsCount">0 movimientos</span>
                 </div>
                 <div class="mh-filters-row">
@@ -911,7 +906,6 @@
                     <button class="btn btn-success" id="openCashBtn" onclick="showOpenCashModal()">
                     <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> Abrir Caja
                 </button>
-                    <button class="btn btn-danger" id="closeCashBtn" onclick="showCloseCashModal()">🔒 Cerrar Caja</button>
                 </div>
 
                 <div class="cash-status" id="cashStatus">
@@ -1091,8 +1085,18 @@
             </div>
             <div class="payment-body">
                 <div class="payment-total-display">
-                    <div class="payment-total-label">Total a cobrar</div>
+                    <div class="payment-total-label" id="paymentTotalLabel">Total a cobrar</div>
                     <div class="payment-total-amount" id="paymentTotal">$0.00</div>
+                    <div class="payment-card-hero" id="paymentCardHero" style="display:none">
+                        <div class="payment-total-label payment-card-hero-label">A cobrar al cliente</div>
+                        <div class="payment-total-amount payment-card-hero-amount" id="payHeroGross">$0.00</div>
+                        <div class="payment-card-hero-rows">
+                            <div class="pay-fee-row"><span>Venta por tarjeta</span><strong id="payHeroBase">$0.00</strong></div>
+                            <div class="pay-fee-row pay-fee-row-neg"><span id="payHeroFeeLabel">Comisión MP</span><strong id="payHeroFeeAmount">$0.00</strong></div>
+                        </div>
+                        <div class="pay-fee-note" id="payHeroNote">Comisión (X% + IVA) se descuenta del cobro por tarjeta</div>
+                        <div class="pay-fee-warn" id="payHeroWarn" style="display:none">⚠️ Sin terminal configurada en Settings → Terminales</div>
+                    </div>
                 </div>
 
                 <div class="payment-methods">
@@ -1118,13 +1122,6 @@
                     <div class="pay-input-group" id="payCardGroup" style="display:none">
                         <label><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="2"></rect><path d="M1 10h22"></path></svg> Monto tarjeta</label>
                         <input type="text" id="payCardAmount" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="0.00" autocomplete="off" onfocus="this.select()" oninput="calculatePaymentChange()" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPayment();}">
-                        <div class="pay-fee-box" id="payCardFeeBox" style="display:none">
-                            <div class="pay-fee-row"><span>Venta por tarjeta</span><strong id="payFeeBase">$0.00</strong></div>
-                            <div class="pay-fee-row pay-fee-row-neg"><span id="payFeeLabel">Comisión MP</span><strong id="payFeeAmount">$0.00</strong></div>
-                            <div class="pay-fee-row pay-fee-row-total"><span>A cobrar al cliente</span><strong id="payFeeGross">$0.00</strong></div>
-                            <div class="pay-fee-note" id="payFeeNote">Comisión (X% + IVA) se descuenta del cobro por tarjeta</div>
-                            <div class="pay-fee-warn" id="payFeeWarn" style="display:none">⚠️ Sin terminal configurada en Settings → Terminales</div>
-                        </div>
                     </div>
                     <div class="pay-summary" id="paySummary" style="display:none">
                         <div class="pay-summary-row">

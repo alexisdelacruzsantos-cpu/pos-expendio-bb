@@ -812,19 +812,11 @@ function showOpenShiftModal({ source = 'login' } = {}) {
                 <label>Monto de apertura *</label>
                 <input type="number" name="opening_amount" min="0" step="0.01" value="0" required>
             </div>
-            <div class="form-group">
-                <label>Terminal (opcional)</label>
-                <input type="text" name="terminal" placeholder="Ej: Caja 1, Mostrador, etc.">
-            </div>
-            <div class="form-group">
-                <label>Notas (opcional)</label>
-                <textarea name="notes" rows="2" placeholder="Observaciones del inicio de turno"></textarea>
-            </div>
         </form>
     `;
     foot.innerHTML = `
         <button type="button" class="btn btn-secondary" onclick="${source === 'login' ? 'handleCloseSession()' : 'closeShiftGate({silent:true})'}">${source === 'login' ? 'Cerrar sesión' : 'Cancelar'}</button>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('openShiftForm').requestSubmit()">🔓 Abrir turno</button>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('openShiftForm').requestSubmit()">Abrir turno</button>
     `;
     openShiftGate();
     if (source === 'login') {
@@ -954,8 +946,8 @@ async function submitOpenShift(event) {
     const form = event.target;
     const data = {
         opening_amount: parseFloat(form.opening_amount.value) || 0,
-        terminal: form.terminal.value || '',
-        notes: form.notes.value || ''
+        terminal: '',
+        notes: ''
     };
     try {
         const result = await apiCall('/cash/open', 'POST', data);
@@ -6303,10 +6295,8 @@ function selectPayMethod(method) {
     const cashInput = document.getElementById('payCashAmount');
     const cardInput = document.getElementById('payCardAmount');
     const total = currentCartTotal();
-    const feeRate = getMPFeeRate();
+    if (cardInput) cardInput.readOnly = method === 'card';
     if (method === 'card') {
-        const gross = feeRate > 0 ? total / (1 - feeRate) : total;
-        if (cardInput) cardInput.value = money(gross);
         if (cashInput) cashInput.value = '';
     } else if (method === 'mixed') {
         if (cardInput) cardInput.value = '';
@@ -6354,6 +6344,10 @@ function calculatePaymentChange() {
             cardInput.value = feeRate > 0 ? money(rest / (1 - feeRate)) : money(rest);
         }
     }
+    // En "Tarjeta" el monto no se edita: es el total con comisión (se recalcula si la terminal carga después)
+    if (paymentMethod === 'card' && cardInput) {
+        cardInput.value = money(feeRate > 0 ? total / (1 - feeRate) : total);
+    }
     const cardGrossFinal = Math.max(0, parseFloat(cardInput?.value || 0) || 0);
     const cardNet = feeActive ? cardGrossFinal * (1 - feeRate) : cardGrossFinal;
     const cardFee = cardGrossFinal - cardNet;
@@ -6379,7 +6373,7 @@ function calculatePaymentChange() {
         if (cardInput) cardInput.placeholder = faltaCard > 0.01 ? 'Falta $' + money(faltaCard) : 'Completo';
     }
 
-    renderCardFee(feeActive ? cardGrossFinal : 0, cardNet, cardFee, feeRate);
+    renderPaymentHead(cardGrossFinal, cardNet, cardFee, feeRate);
     if (cardInput && cardInput.parentElement) cardInput.parentElement.classList.toggle('has-fee', feeActive && cardGrossFinal > 0);
 
     const missingEl = document.getElementById('paymentMissing');
@@ -6403,34 +6397,47 @@ function calculatePaymentChange() {
     if (confirmBtn) confirmBtn.disabled = received < total - 0.01;
 }
 
-function renderCardFee(gross, net, fee, feeRate) {
-    const box = document.getElementById('payCardFeeBox');
-    if (!box) return;
-    const show = paymentMethod === 'card' || paymentMethod === 'mixed';
-    box.style.display = show ? 'block' : 'none';
-    const warn = document.getElementById('payFeeWarn');
-    const note = document.getElementById('payFeeNote');
-    const label = document.getElementById('payFeeLabel');
-    const base = document.getElementById('payFeeBase');
-    const amount = document.getElementById('payFeeAmount');
-    const grossEl = document.getElementById('payFeeGross');
-    if (!warn || !note || !label || !base || !amount || !grossEl) return;
-
+function feeMeta(feeRate) {
     const rate = activeTerminal && activeTerminal.commission_rate ? parseFloat(activeTerminal.commission_rate) : 0;
-    if (feeRate > 0) {
-        warn.style.display = 'none';
+    return {
+        rate,
+        hasFee: feeRate > 0,
+        label: feeRate > 0 ? `Comisión MP (${rate.toLocaleString('es-MX')}% + IVA)` : 'Comisión MP'
+    };
+}
+
+function renderPaymentHead(gross, net, fee, feeRate) {
+    const isCard = paymentMethod === 'card';
+    const label = document.getElementById('paymentTotalLabel');
+    const totalEl = document.getElementById('paymentTotal');
+    const hero = document.getElementById('paymentCardHero');
+    if (label) label.style.display = isCard ? 'none' : 'block';
+    if (totalEl) totalEl.style.display = isCard ? 'none' : 'block';
+    if (!hero) return;
+    hero.style.display = isCard ? 'block' : 'none';
+    if (!isCard) return;
+
+    const grossEl = document.getElementById('payHeroGross');
+    const baseEl = document.getElementById('payHeroBase');
+    const feeLabel = document.getElementById('payHeroFeeLabel');
+    const feeAmount = document.getElementById('payHeroFeeAmount');
+    const note = document.getElementById('payHeroNote');
+    const warn = document.getElementById('payHeroWarn');
+    if (!grossEl || !baseEl || !feeLabel || !feeAmount || !note || !warn) return;
+
+    grossEl.textContent = '$' + money(gross);
+    baseEl.textContent = '$' + money(net);
+
+    const meta = feeMeta(feeRate);
+    feeLabel.textContent = meta.label;
+    if (meta.hasFee) {
+        feeAmount.textContent = '-' + '$' + money(fee);
         note.style.display = 'block';
-        label.textContent = `Comisión MP (${rate.toLocaleString('es-MX')}% + IVA)`;
-        base.textContent = '$' + money(net);
-        amount.textContent = '-' + '$' + money(fee);
-        grossEl.textContent = '$' + money(gross);
+        warn.style.display = 'none';
     } else {
-        warn.style.display = 'block';
+        feeAmount.textContent = '$0.00';
         note.style.display = 'none';
-        label.textContent = 'Comisión MP';
-        base.textContent = '$0.00';
-        amount.textContent = '$0.00';
-        grossEl.textContent = '$0.00';
+        warn.style.display = 'block';
     }
 }
 
@@ -6994,7 +7001,7 @@ async function checkCashRegister() {
 function updateCashStatus(data) {
     const statusEl = document.getElementById('cashStatus');
     const openBtn = document.getElementById('openCashBtn');
-    const closeBtn = document.getElementById('closeCashBtn');
+    const controls = document.querySelector('.cash-controls');
 
     if (data.has_open) {
         const c = data.cash;
@@ -7023,16 +7030,16 @@ function updateCashStatus(data) {
                     <div class="stat-value">$${cardTotal.toFixed(2)}</div>
                 </div>
             </div>
-            <p style="margin-top:12px;font-size:13px">Cajero: ${escapeHtml(c.cashier_name)} · Apertura: ${new Date(c.open_date).toLocaleString('es-MX')} · ${salesCount} ventas en el turno</p>
+            <p style="margin-top:12px;font-size:15px;color:var(--text)">Apertura: <strong style="font-size:17px;font-weight:700">${new Date(c.open_date).toLocaleString('es-MX')}</strong> · ${salesCount} ventas en el turno</p>
         `;
         statusEl.className = 'cash-status open';
         openBtn.style.display = 'none';
-        closeBtn.style.display = 'inline-block';
+        if (controls) controls.style.display = 'none';
     } else {
         statusEl.innerHTML = '<p>🔒 Caja cerrada</p>';
         statusEl.className = 'cash-status';
         openBtn.style.display = 'inline-block';
-        closeBtn.style.display = 'none';
+        if (controls) controls.style.display = 'flex';
     }
 }
 
@@ -7373,11 +7380,10 @@ async function loadMyShift() {
                 <div class="shift-stat highlight"><span class="stat-label">Esperado en caja</span><span class="stat-value">$${expected.toFixed(2)}</span></div>
             </div>
             <div class="my-shift-actions">
-                ${isOwner ? `
-                    <button class="btn btn-primary" onclick="startCloseAndOpenFlow()">🔄 Cerrar y abrir nuevo</button>
-                ` : `
+                <button class="btn btn-danger" onclick="showCloseCashModal()">🔒 Cerrar Caja</button>
+                ${!isOwner ? `
                     <button class="btn btn-warning" onclick="showOwnerPasswordModal({reason:'Para cerrar el turno de otro usuario confirma con la contraseña del dueño',onVerified:doCloseAndOpen})">🔒 Cerrar turno</button>
-                `}
+                ` : ''}
             </div>
         `;
     } catch (error) {
