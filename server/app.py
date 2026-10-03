@@ -84,6 +84,7 @@ from routes.maintenance import maintenance_bp
 from routes.updates import updates_bp
 from routes.point import point_bp
 from routes.sync import sync_bp
+from routes.migration import migration_bp
 
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(products_bp, url_prefix='/api/products')
@@ -99,6 +100,7 @@ app.register_blueprint(maintenance_bp, url_prefix='/api/maintenance')
 app.register_blueprint(updates_bp, url_prefix='/api/updates')
 app.register_blueprint(point_bp, url_prefix='/api/mp')
 app.register_blueprint(sync_bp, url_prefix='/api/sync')
+app.register_blueprint(migration_bp, url_prefix='/api/config/migration')
 
 
 # ---------------------------------------------------------------------------

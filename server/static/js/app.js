@@ -7763,6 +7763,8 @@ const SETTINGS_MODULES = [
     { key: 'purge', icon: '🧹', title: 'Depurar ventas', desc: 'Borra tickets, devoluciones e historial' },
     { key: 'resetstock', icon: '📦', title: 'Poner stock en 0', desc: 'Limpia el stock general de todos los productos' },
     { key: 'purgecatalog', icon: '🗑', title: 'Vaciar catálogo', desc: 'Elimina productos y categorías para reimportar' },
+    { key: 'migration_export', icon: '📦', title: 'Migración POS', desc: 'Genera archivo completo de migración (.posmig.json) - Solo lectura' },
+    { key: 'migration_import', icon: '📥', title: 'Importación POS', desc: 'Carga y valida archivo .posmig.json para importar datos' },
     { key: 'updates', icon: '🔄', title: 'Actualizaciones', desc: 'Busca e instala la última versión desde GitHub' },
     { key: 'sync', icon: '☁️', title: 'Sincronización', desc: 'Sube una copia de lectura a la nube para el celular' },
     // Módulos futuros: agrega un bloque como los anteriores
@@ -7830,6 +7832,12 @@ function showSettingsTab(tab) {
             break;
         case 'purgecatalog':
             loadPurgeCatalogSettings();
+            break;
+        case 'migration_export':
+            loadMigrationExportSettings();
+            break;
+        case 'migration_import':
+            loadMigrationImportSettings();
             break;
         case 'updates':
             loadUpdatesSettings();
@@ -10614,4 +10622,226 @@ function showToast(message, type = 'info') {
     showToast._t = setTimeout(() => {
         toast.classList.remove('show');
     }, type === 'error' ? 4500 : 3000);
+}
+// Migración POS - Exportar
+async function loadMigrationExportSettings() {
+    const content = document.getElementById('settingsContent');
+    content.innerHTML = `
+        ${settingsBackBar()}
+        <div class="section-header">
+            <h3>📦 Migración POS - Exportar</h3>
+        </div>
+        <div class="maintenance-card">
+            <p class="maintenance-desc">Genera un archivo completo de migración <strong>.posmig.json</strong> con todos los datos del POS actual.</p>
+            <ul class="maintenance-list">
+                <li>Configuraciones, usuarios, categorías y productos</li>
+                <li>Lotes, promociones y clientes</li>
+                <li>Movimientos de inventario, ventas, detalle de ventas y turnos</li>
+                <li>Compras, proveedores y demás datos del sistema</li>
+            </ul>
+            <p class="maintenance-note"><strong>Operación solo lectura.</strong> No se modifica ningún dato en este POS.</p>
+            <button class="btn btn-primary maintenance-btn" onclick="generateMigrationFile()">📦 Generar archivo de migración (.posmig.json)</button>
+            <div id="migrationExportResult"></div>
+        </div>
+    `;
+}
+
+async function generateMigrationFile() {
+    const result = document.getElementById('migrationExportResult');
+    if (result) {
+        result.innerHTML = '<p class="maintenance-note" style="margin-top:16px">Generando archivo de migración...</p>';
+    }
+    try {
+        const response = await fetch('/api/config/migration/export', {
+            method: 'POST',
+            headers: {
+                'Authorization': localStorage.getItem('pos_token') ? 'Bearer ' + localStorage.getItem('pos_token') : '',
+                'Content-Type': 'application/json'
+            }
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Error al generar archivo' }));
+            throw new Error(err.error || 'Error al generar archivo');
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.download = `migracion_pos_${ts}.posmig.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        if (result) {
+            result.innerHTML = '<p class="maintenance-note" style="margin-top:16px;color:var(--success-color)">✓ Archivo de migración generado y descargado correctamente.</p>';
+        }
+        showToast('Archivo de migración generado correctamente', 'success');
+    } catch (error) {
+        if (result) {
+            result.innerHTML = `<p class="update-error" style="margin-top:16px">⚠️ ${escapeHtml(error.message)}</p>`;
+        }
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+// Migración POS - Importar
+let migrationPreviewData = null;
+
+async function loadMigrationImportSettings() {
+    const content = document.getElementById('settingsContent');
+    content.innerHTML = `
+        ${settingsBackBar()}
+        <div class="section-header">
+            <h3>📥 Importación POS - Cargar archivo</h3>
+        </div>
+        <div class="maintenance-card">
+            <p class="maintenance-desc">Carga un archivo <strong>.posmig.json</strong> generado desde otro POS para importar datos de forma segura y validada.</p>
+            <p class="maintenance-note"><strong>Importación no destructiva.</strong> Se validará el archivo antes de aplicar los cambios.</p>
+            <div class="form-group" style="margin-top:16px">
+                <label>Seleccionar archivo .posmig.json</label>
+                <input type="file" id="migrationFileInput" accept=".posmig.json,.json" style="padding:8px">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+                <button class="btn btn-primary" onclick="previewMigrationFile()">🔍 Validar y previsualizar</button>
+                <button class="btn btn-secondary" onclick="loadMigrationImportSettings()">Limpiar</button>
+            </div>
+            <div id="migrationPreviewResult"></div>
+        </div>
+    `;
+}
+
+async function previewMigrationFile() {
+    const fileInput = document.getElementById('migrationFileInput');
+    const result = document.getElementById('migrationPreviewResult');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        showToast('Selecciona un archivo .posmig.json', 'error');
+        return;
+    }
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    if (result) {
+        result.innerHTML = '<p class="maintenance-note" style="margin-top:16px">Validando archivo...</p>';
+    }
+    try {
+        const response = await fetch('/api/config/migration/preview', {
+            method: 'POST',
+            headers: {
+                'Authorization': localStorage.getItem('pos_token') ? 'Bearer ' + localStorage.getItem('pos_token') : ''
+            },
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Error al validar archivo');
+        }
+        migrationPreviewData = data;
+        renderMigrationPreview(data, result);
+    } catch (error) {
+        migrationPreviewData = null;
+        if (result) {
+            result.innerHTML = `<p class="update-error" style="margin-top:16px">⚠️ ${escapeHtml(error.message)}</p>`;
+        }
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+function renderMigrationPreview(data, resultEl) {
+    if (!resultEl) return;
+    const counts = data.row_counts || {};
+    const source = data.source || {};
+    const meta = data.meta || {};
+    resultEl.innerHTML = `
+        <div class="maintenance-card" style="margin-top:16px;background:#f9fafb">
+            <h4 style="margin-top:0">Vista previa - Archivo válido</h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px">
+                <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border-color)">
+                    <div style="font-size:12px;color:var(--text-light)">Formato</div>
+                    <div style="font-weight:600">${escapeHtml(data.format || '-')} v${escapeHtml(data.version || '-')}</div>
+                </div>
+                <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border-color)">
+                    <div style="font-size:12px;color:var(--text-light)">Exportado</div>
+                    <div style="font-weight:600">${data.exported_at ? new Date(data.exported_at).toLocaleString('es-MX') : '-'}</div>
+                </div>
+                <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border-color)">
+                    <div style="font-size:12px;color:var(--text-light)">Origen</div>
+                    <div style="font-weight:600">${escapeHtml(source.app_version || '-')} - ${escapeHtml(source.hostname || '-')}</div>
+                </div>
+                <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border-color)">
+                    <div style="font-size:12px;color:var(--text-light)">Checksum</div>
+                    <div style="font-weight:600;font-size:11px;word-break:break-all">${escapeHtml(data.checksum || '-')}</div>
+                </div>
+            </div>
+            <h5 style="margin-top:20px;margin-bottom:8px">Registros a importar</h5>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+                ${Object.entries(counts).map(([k,v]) => `
+                    <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-size:13px">${escapeHtml(k)}</span>
+                        <strong>${v}</strong>
+                    </div>
+                `).join('')}
+            </div>
+            <p class="maintenance-note" style="margin-top:16px"><strong>Importación no destructiva.</strong> El historial se añadirá (append). Configuraciones, catálogos y usuarios se fusionarán (upsert) para evitar duplicados.</p>
+            <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+                <button class="btn btn-success" onclick="applyMigrationImport()">⚡ Aplicar importación</button>
+                <button class="btn btn-secondary" onclick="loadMigrationImportSettings()">Cancelar</button>
+            </div>
+        </div>
+    `;
+}
+
+async function applyMigrationImport() {
+    if (!migrationPreviewData) {
+        showToast('No hay previsualización válida', 'error');
+        return;
+    }
+    if (!confirm('¿Aplicar importación de datos desde este archivo .posmig.json?\n\nEsta operación es segura y no destructiva.')) {
+        return;
+    }
+    const result = document.getElementById('migrationPreviewResult');
+    if (result) {
+        result.innerHTML = '<p class="maintenance-note" style="margin-top:16px">Aplicando importación... Esto puede tomar unos momentos.</p>';
+    }
+    try {
+        const response = await fetch('/api/config/migration/import', {
+            method: 'POST',
+            headers: {
+                'Authorization': localStorage.getItem('pos_token') ? 'Bearer ' + localStorage.getItem('pos_token') : '',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Error al aplicar importación');
+        }
+        migrationPreviewData = null;
+        if (result) {
+            const r = data.results || {};
+            result.innerHTML = `
+                <div class="maintenance-card" style="margin-top:16px;background:#f0fdf4;border-color:#86efac">
+                    <h4 style="margin-top:0;color:#166534">✓ Importación completada</h4>
+                    <div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+                        ${Object.entries(r).map(([k,v]) => `
+                            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid #bbf7d0;display:flex;justify-content:space-between;align-items:center">
+                                <span style="font-size:13px">${escapeHtml(k)}</span>
+                                <strong>+${v.inserted||0} / upd:${v.updated||0} / skip:${v.skipped||0}</strong>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="maintenance-note" style="margin-top:16px;color:#166534">${escapeHtml(data.message || 'Datos importados correctamente')}</p>
+                </div>
+            `;
+        }
+        showToast(data.message || 'Importación completada', 'success');
+        // Refrescar datos relevantes
+        if (typeof loadProducts === 'function') loadProducts();
+        if (typeof loadLots === 'function') loadLots(true);
+    } catch (error) {
+        if (result) {
+            result.innerHTML = `<p class="update-error" style="margin-top:16px">⚠️ ${escapeHtml(error.message)}</p>`;
+        }
+        showToast('Error: ' + error.message, 'error');
+    }
 }
