@@ -10686,6 +10686,7 @@ async function generateMigrationFile() {
 }
 
 // Migración POS - Importar
+let migrationPreviewFile = null;
 let migrationPreviewData = null;
 
 async function loadMigrationImportSettings() {
@@ -10719,6 +10720,7 @@ async function previewMigrationFile() {
         return;
     }
     const file = fileInput.files[0];
+    migrationPreviewFile = file;
     const formData = new FormData();
     formData.append('file', file);
     if (result) {
@@ -10792,8 +10794,8 @@ function renderMigrationPreview(data, resultEl) {
 }
 
 async function applyMigrationImport() {
-    if (!migrationPreviewData) {
-        showToast('No hay previsualización válida', 'error');
+    if (!migrationPreviewFile) {
+        showToast('No hay archivo cargado para importar', 'error');
         return;
     }
     if (!confirm('¿Aplicar importación de datos desde este archivo .posmig.json?\n\nEsta operación es segura y no destructiva.')) {
@@ -10804,19 +10806,21 @@ async function applyMigrationImport() {
         result.innerHTML = '<p class="maintenance-note" style="margin-top:16px">Aplicando importación... Esto puede tomar unos momentos.</p>';
     }
     try {
+        const formData = new FormData();
+        formData.append('file', migrationPreviewFile);
         const response = await fetch('/api/config/migration/import', {
             method: 'POST',
             headers: {
-                'Authorization': localStorage.getItem('pos_token') ? 'Bearer ' + localStorage.getItem('pos_token') : '',
-                'Content-Type': 'application/json'
+                'Authorization': localStorage.getItem('pos_token') ? 'Bearer ' + localStorage.getItem('pos_token') : ''
             },
-            body: JSON.stringify({})
+            body: formData
         });
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Error al aplicar importación');
         }
         migrationPreviewData = null;
+        migrationPreviewFile = null;
         if (result) {
             const r = data.results || {};
             result.innerHTML = `
