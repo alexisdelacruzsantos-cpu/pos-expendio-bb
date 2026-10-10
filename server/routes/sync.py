@@ -60,20 +60,30 @@ def _swap_db(payload):
             pass
         raise ValueError('Base rechazada: %s' % e)
 
-    # Swap atómico (Linux/Mac/Windows modernos lo soportan).
-    os.replace(tmp_path, db_path)
-
-    # La conexión cacheada del app sigue leyendo el inode anterior: forzarla a
-    # re-abrir. Después se eliminan restos de WAL/SHM del archivo viejo.
+    # Cerrar la conexión cacheada ANTES de tocar los archivos: así no queda un
+    # WAL abierto que SQLite reaplicaría sobre la base nueva al reabrir (eso
+    # produce "database disk image is malformed").
     try:
         current_app.config['DB'].reset_connection()
     except Exception as e:
         raise ValueError('No se pudo reconectar la base: %s' % e)
-    for ext in ('.db-wal', '.db-shm'):
+
+    # Eliminar restos de WAL/SHM del archivo anterior. Los nombres reales que
+    # crea SQLite son `<db>-wal` y `<db>-shm` (NO `<db>.db-wal`).
+    for suffix in ('-wal', '-shm'):
         try:
-            os.remove(db_path + ext)
+            os.remove(db_path + suffix)
         except OSError:
             pass
+
+    # Swap atómico (Linux/Mac/Windows modernos lo soportan).
+    os.replace(tmp_path, db_path)
+
+    # Forzar una reapertura limpia: la próxima consulta lee el archivo nuevo.
+    try:
+        current_app.config['DB'].reset_connection()
+    except Exception as e:
+        raise ValueError('No se pudo reconectar la base: %s' % e)
 
 
 @sync_bp.route('/db', methods=['POST'])
