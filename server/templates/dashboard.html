@@ -918,7 +918,7 @@
                         <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l2-4 2 4 3-6 2 6"></path></svg> Corte del Día
                     </button>
                     <button class="tab-btn" onclick="showCashTab('all')">
-                        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Todos los Turnos
+                        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Turnos del Día
                     </button>
                     <button class="tab-btn" onclick="showCashTab('history')">
                         <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8M16 17H8M10 9H8"></path></svg> Historial
@@ -972,7 +972,7 @@
                             <label class="filter-chip"><input type="checkbox" id="allFilterOpen" onchange="applyAllShiftsFilter()"> 🟢 Solo abiertos</label>
                             <label class="filter-chip"><input type="checkbox" id="allFilterClosed" onchange="applyAllShiftsFilter()"> 🔴 Solo cerrados</label>
                             <label class="filter-chip"><input type="checkbox" id="allFilterOverdue" onchange="applyAllShiftsFilter()"> ⚠️ Solo vencidos</label>
-                            <input type="date" id="allDateFilter" onchange="applyAllShiftsFilter()" class="date-filter-input" title="Filtrar por fecha">
+                            <input type="date" id="allDateFilter" onchange="loadAllShifts()" class="date-filter-input" title="Filtrar por fecha">
                             <button class="btn btn-sm btn-secondary" onclick="clearAllShiftsFilter()">🔄 Limpiar</button>
                             <button class="btn btn-sm btn-primary" onclick="loadAllShifts()">↻ Recargar</button>
                         </div>
@@ -1007,8 +1007,8 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Cajero</th>
+                                <th>Cajero / Apertura</th>
+                                <th>Cierre</th>
                                 <th>Total</th>
                                 <th>Efectivo</th>
                                 <th>Tarjeta</th>

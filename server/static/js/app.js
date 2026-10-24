@@ -7277,7 +7277,13 @@ function showCashTab(tab) {
 
     if (tab === 'today') loadDayCuts();
     if (tab === 'myticket') loadMyShift();
-    if (tab === 'all') loadAllShifts();
+    if (tab === 'all') {
+        const dateInput = document.getElementById('allDateFilter');
+        if (dateInput && !dateInput.value) {
+            dateInput.value = localDateStr(new Date());
+        }
+        loadAllShifts();
+    }
     if (tab === 'history') loadCashHistory();
 }
 
@@ -7397,10 +7403,20 @@ async function loadMyShift() {
 }
 
 let _allShiftsCache = [];
+let _allShiftsLoadedDate = '';
 
 async function loadAllShifts() {
     try {
-        const data = await apiCall('/cash/?limit=500');
+        const dateInput = document.getElementById('allDateFilter');
+        let dateFilter = dateInput?.value || '';
+        if (!dateFilter) {
+            dateFilter = localDateStr(new Date());
+            if (dateInput && !dateInput.value) {
+                dateInput.value = dateFilter;
+            }
+        }
+        _allShiftsLoadedDate = dateFilter;
+        const data = await apiCall(`/cash/?limit=500&date_from=${dateFilter}&date_to=${dateFilter}`);
         _allShiftsCache = data || [];
         applyAllShiftsFilter();
     } catch (error) {
@@ -7415,7 +7431,7 @@ function applyAllShiftsFilter() {
     const showOpen = document.getElementById('allFilterOpen')?.checked;
     const showClosed = document.getElementById('allFilterClosed')?.checked;
     const showOverdue = document.getElementById('allFilterOverdue')?.checked;
-    const dateFilter = document.getElementById('allDateFilter')?.value;
+    const dateFilter = document.getElementById('allDateFilter')?.value || _allShiftsLoadedDate || localDateStr(new Date());
     const today = localDateStr(new Date());
 
     let filtered = _allShiftsCache.filter(s => {
@@ -7423,7 +7439,7 @@ function applyAllShiftsFilter() {
         const openDateStr = openDate ? localDateStr(openDate) : '';
         const isOverdue = s.status === 'open' && openDateStr && openDateStr < today;
 
-        if (dateFilter && openDateStr !== dateFilter) return false;
+        if (openDateStr && openDateStr !== dateFilter) return false;
 
         if (showOpen && !showClosed) {
             if (s.status !== 'open') return false;
@@ -7440,11 +7456,12 @@ function applyAllShiftsFilter() {
 }
 
 function clearAllShiftsFilter() {
+    const dateInput = document.getElementById('allDateFilter');
+    if (dateInput) dateInput.value = localDateStr(new Date());
     document.getElementById('allFilterOpen').checked = false;
     document.getElementById('allFilterClosed').checked = false;
     document.getElementById('allFilterOverdue').checked = false;
-    document.getElementById('allDateFilter').value = '';
-    applyAllShiftsFilter();
+    loadAllShifts();
 }
 
 function renderAllShiftsStats(all) {
@@ -7697,9 +7714,14 @@ async function loadCashHistory() {
 
             return `
                 <tr>
-                    <td>${new Date(c.open_date).toLocaleString('es-MX')}</td>
+                    <td>
+                        <div style="font-weight:600">${escapeHtml(c.cashier_name || '-')}</div>
+                        <div style="font-size:11px;color:var(--text-light)">${c.open_date ? new Date(c.open_date).toLocaleString('es-MX') : '-'}</div>
+                    </td>
                     <td>${c.close_date ? new Date(c.close_date).toLocaleString('es-MX') : '-'}</td>
-                    <td>${escapeHtml(c.cashier_name || '-')}</td>
+                    <td>$${parseFloat(c.total_sales || 0).toFixed(2)}</td>
+                    <td>$${parseFloat(c.total_cash || 0).toFixed(2)}</td>
+                    <td>$${parseFloat(c.total_card || 0).toFixed(2)}</td>
                     <td>$${parseFloat(c.expected_amount || 0).toFixed(2)}</td>
                     <td>$${parseFloat(c.counted_amount || 0).toFixed(2)}</td>
                     <td class="${diffClass}">${diffText}</td>
