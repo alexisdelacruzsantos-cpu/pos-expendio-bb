@@ -965,13 +965,11 @@
                         <div class="all-shifts-stats">
                             <div class="all-stat open"><span class="all-stat-num" id="allOpenCount">0</span><span class="all-stat-lbl">🟢 Abiertos</span></div>
                             <div class="all-stat closed"><span class="all-stat-num" id="allClosedCount">0</span><span class="all-stat-lbl">🔴 Cerrados</span></div>
-                            <div class="all-stat overdue"><span class="all-stat-num" id="allOverdueCount">0</span><span class="all-stat-lbl">⚠️ Vencidos</span></div>
                             <div class="all-stat total"><span class="all-stat-num" id="allTotalCount">0</span><span class="all-stat-lbl"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M11 7v13M13 7v13M5 9h14M5 9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1M9 14h6M9 18h6"></path></svg> Total</span></div>
                         </div>
                         <div class="all-shifts-filters">
                             <label class="filter-chip"><input type="checkbox" id="allFilterOpen" onchange="applyAllShiftsFilter()"> 🟢 Solo abiertos</label>
                             <label class="filter-chip"><input type="checkbox" id="allFilterClosed" onchange="applyAllShiftsFilter()"> 🔴 Solo cerrados</label>
-                            <label class="filter-chip"><input type="checkbox" id="allFilterOverdue" onchange="applyAllShiftsFilter()"> ⚠️ Solo vencidos</label>
                             <input type="date" id="allDateFilter" onchange="loadAllShifts()" class="date-filter-input" title="Filtrar por fecha">
                             <button class="btn btn-sm btn-secondary" onclick="clearAllShiftsFilter()">🔄 Limpiar</button>
                             <button class="btn btn-sm btn-primary" onclick="loadAllShifts()">↻ Recargar</button>

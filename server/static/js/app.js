@@ -7430,14 +7430,11 @@ function applyAllShiftsFilter() {
     if (!_allShiftsCache) return;
     const showOpen = document.getElementById('allFilterOpen')?.checked;
     const showClosed = document.getElementById('allFilterClosed')?.checked;
-    const showOverdue = document.getElementById('allFilterOverdue')?.checked;
     const dateFilter = document.getElementById('allDateFilter')?.value || _allShiftsLoadedDate || localDateStr(new Date());
-    const today = localDateStr(new Date());
 
     let filtered = _allShiftsCache.filter(s => {
         const openDate = s.open_date ? new Date(s.open_date) : null;
         const openDateStr = openDate ? localDateStr(openDate) : '';
-        const isOverdue = s.status === 'open' && openDateStr && openDateStr < today;
 
         if (openDateStr && openDateStr !== dateFilter) return false;
 
@@ -7446,7 +7443,6 @@ function applyAllShiftsFilter() {
         } else if (showClosed && !showOpen) {
             if (s.status !== 'closed') return false;
         }
-        if (showOverdue && !isOverdue) return false;
 
         return true;
     });
@@ -7460,18 +7456,14 @@ function clearAllShiftsFilter() {
     if (dateInput) dateInput.value = localDateStr(new Date());
     document.getElementById('allFilterOpen').checked = false;
     document.getElementById('allFilterClosed').checked = false;
-    document.getElementById('allFilterOverdue').checked = false;
     loadAllShifts();
 }
 
 function renderAllShiftsStats(all) {
-    const today = localDateStr(new Date());
-    let openCount = 0, closedCount = 0, overdueCount = 0;
+    let openCount = 0, closedCount = 0;
     all.forEach(s => {
         if (s.status === 'open') {
             openCount++;
-            const openDateStr = s.open_date ? localDateStr(s.open_date) : '';
-            if (openDateStr < today) overdueCount++;
         } else if (s.status === 'closed') {
             closedCount++;
         }
@@ -7479,7 +7471,8 @@ function renderAllShiftsStats(all) {
     const el = (id) => document.getElementById(id);
     if (el('allOpenCount')) el('allOpenCount').textContent = openCount;
     if (el('allClosedCount')) el('allClosedCount').textContent = closedCount;
-    if (el('allOverdueCount')) el('allOverdueCount').textContent = overdueCount;
+    const overdueEl = el('allOverdueCount');
+    if (overdueEl) overdueEl.textContent = 0;
     if (el('allTotalCount')) el('allTotalCount').textContent = all.length;
 }
 
@@ -7526,7 +7519,6 @@ function renderAllShiftsTable(shifts) {
 
     tbody.innerHTML = shifts.map(s => {
         const openDateStr = s.open_date ? localDateStr(s.open_date) : '';
-        const isOverdue = s.status === 'open' && openDateStr && openDateStr < today;
         const isOpen = s.status === 'open';
         const diff = parseFloat(s.difference) || 0;
         let diffClass = 'cash-diff-zero';
@@ -7535,12 +7527,12 @@ function renderAllShiftsTable(shifts) {
 
         let statusPill = '';
         if (isOpen) {
-            statusPill = `<span class="shift-status-pill open ${isOverdue ? 'overdue' : ''}">${isOverdue ? '⚠️ Vencido' : '🟢 Abierto'}</span>`;
+            statusPill = `<span class="shift-status-pill open">🟢 Abierto</span>`;
         } else {
             statusPill = `<span class="shift-status-pill closed">🔴 Cerrado</span>`;
         }
 
-        const rowClass = isOverdue ? 'shift-row-overdue' : (isOpen ? 'shift-row-open' : '');
+        const rowClass = isOpen ? 'shift-row-open' : '';
 
         return `
             <tr class="${rowClass}">
@@ -7560,7 +7552,6 @@ function renderAllShiftsTable(shifts) {
                 <td>
                     <button class="action-btn-icon" onclick="viewCashDetail(${s.id})" title="Ver detalle">👁️</button>
                     ${isOpen && canEdit ? `<button class="action-btn-icon warning" onclick="adminForceCloseShift(${s.id}, '${(s.cashier_name || '').replace(/'/g, "\\'")}')" title="Cerrar turno">🔒</button>` : ''}
-                    ${isOverdue ? `<button class="action-btn-icon danger" onclick="adminCancelShift(${s.id})" title="Cancelar turno vencido">🚫</button>` : ''}
                 </td>
             </tr>
         `;
