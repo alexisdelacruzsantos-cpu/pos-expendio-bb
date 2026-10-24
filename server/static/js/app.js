@@ -2940,13 +2940,13 @@ function renderProductRow(p) {
     let stockClass, stockLabel;
     if (stock <= 0) {
         stockClass = 'badge-danger';
-        stockLabel = '🔴 Agotado';
+        stockLabel = `● ${stock}`;
     } else if (stock < PRODUCT_LOW_STOCK_THRESHOLD) {
         stockClass = 'badge-warning';
-        stockLabel = `🟡 Stock bajo (${stock})`;
+        stockLabel = `● ${stock}`;
     } else {
         stockClass = 'badge-success';
-        stockLabel = `🟢 En stock (${stock})`;
+        stockLabel = `● ${stock}`;
     }
 
     const hasLots = Number(p.lots_count) > 0;
