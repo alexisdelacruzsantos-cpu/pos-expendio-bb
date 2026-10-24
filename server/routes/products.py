@@ -386,8 +386,25 @@ def delete_product(product_id):
         
         sales_count = db.fetch_one('SELECT COUNT(*) as count FROM sale_items WHERE product_id = ?', (product_id,))
         if sales_count['count'] > 0:
-            return jsonify({'error': 'No se puede eliminar el producto porque tiene ventas asociadas'}), 400
-        
+            db.execute('UPDATE products SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (product_id,))
+            db.execute('DELETE FROM promotion_products WHERE product_id = ?', (product_id,))
+            log_movement(db, movement_type='product_deactivated',
+                         product_name=product['name'], product_barcode=product['barcode'],
+                         notes=f'Producto desactivado (tiene {sales_count["count"]} venta(s) asociada(s)). Ya no aparece en el catálogo.')
+            db.execute('''
+                INSERT INTO change_log (table_name, record_id, action, data, source, device_id, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'products',
+                product_id,
+                'deactivate',
+                f'{{"id":{product_id},"reason":"has_sales"}}',
+                'pos',
+                'server',
+                _current_user_id()
+            ))
+            return jsonify({'message': 'Producto desactivado (tiene ventas asociadas). Ya no aparece en el catálogo.'}), 200
+
         db.execute('DELETE FROM promotion_products WHERE product_id = ?', (product_id,))
 
         # Liberar referencias de historial: se conserva el snapshot (product_name/barcode/lote)
@@ -404,20 +421,20 @@ def delete_product(product_id):
         log_movement(db, movement_type='product_deleted',
                      product_name=product['name'], product_barcode=product['barcode'],
                      notes=f'Producto eliminado: {product["name"] or "—"}')
-        
+
         db.execute('''
             INSERT INTO change_log (table_name, record_id, action, data, source, device_id, user_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
-            'products', 
-            product_id, 
+            'products',
+            product_id,
             'delete',
             f'{{"id":{product_id}}}',
             'pos',
             'server',
             _current_user_id()
         ))
-        
+
         return jsonify({'message': 'Producto eliminado exitosamente'}), 200
     
     except Exception as e:
