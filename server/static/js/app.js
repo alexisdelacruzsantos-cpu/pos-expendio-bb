@@ -7290,37 +7290,27 @@ function showCashTab(tab) {
 async function loadDayCuts() {
     try {
         const today = localDateStr(new Date());
-        const data = await apiCall(`/cash/history?date_from=${today}&date_to=${today}&limit=100`);
+        const [data, salesToday] = await Promise.all([
+            apiCall(`/cash/history?date_from=${today}&date_to=${today}&limit=100`),
+            apiCall('/sales/today').catch(() => ({ sales: [] }))
+        ]);
         const tbody = document.getElementById('dayCutsTable');
         if (!tbody) return;
 
-        // Calculate daily totals
-        let dayTotal = 0, dayCash = 0, dayCard = 0, closedCount = 0;
-        
-        if (data.length === 0) {
+        const closedCount = (data || []).filter(c => c.status === 'closed').length;
+
+        if (!data || data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px">Sin cortes hoy</td></tr>';
         } else {
-            data.forEach(c => {
-                const total = parseFloat(c.total_sales) || 0;
-                const cash = parseFloat(c.total_cash) || 0;
-                const card = parseFloat(c.total_card) || 0;
-                if (c.status === 'closed') {
-                    dayTotal += total;
-                    dayCash += cash;
-                    dayCard += card;
-                    closedCount++;
-                }
-            });
-            
             tbody.innerHTML = data.map(c => {
                 const diff = parseFloat(c.difference) || 0;
                 let diffClass = 'cash-diff-zero';
                 if (diff > 0) diffClass = 'cash-diff-positive';
                 else if (diff < 0) diffClass = 'cash-diff-negative';
-                
+
                 const openDate = c.open_date ? new Date(c.open_date).toLocaleString('es-MX') : '—';
                 const closeDate = c.close_date ? new Date(c.close_date).toLocaleString('es-MX') : '—';
-                
+
                 return `
                     <tr>
                         <td>${c.id}</td>
@@ -7340,22 +7330,32 @@ async function loadDayCuts() {
                 `;
             }).join('');
         }
-        
-        // Update summary cards
-        // Incluir las ventas en vivo del turno abierto de hoy (aun no estan en ningun corte)
-        const cur = await apiCall('/cash/current').catch(() => null);
-        if (cur?.has_open && cur.cash && localDateStr(cur.cash.open_date) === today) {
-            const s = cur.stats || {};
-            dayTotal += parseFloat(s.sales_total) || 0;
-            dayCash += parseFloat(s.cash_total) || 0;
-            dayCard += (parseFloat(s.card_total) || 0) + (parseFloat(s.mixed_total) || 0);
-        }
+
+        // Calcular total real desde ventas del día (evita duplicados por totales guardados)
+        let dayTotal = 0, dayCash = 0, dayCard = 0;
+        (salesToday.sales || []).forEach(s => {
+            if (s.status === 'cancelled' || s.status === 'returned') return;
+            const total = parseFloat(s.total || 0);
+            if (isNaN(total)) return;
+            dayTotal += total;
+            if (s.payment_method === 'cash') {
+                dayCash += total;
+            } else if (s.payment_method === 'card') {
+                dayCard += total;
+            } else if (s.payment_method === 'mixed') {
+                const amountTendered = parseFloat(s.amount_tendered || 0);
+                const cashPart = Math.min(total, amountTendered);
+                const cardPart = total - cashPart;
+                dayCash += cashPart > 0 ? cashPart : 0;
+                dayCard += cardPart > 0 ? cardPart : 0;
+            }
+        });
 
         document.getElementById('dayTotalSales').textContent = '$' + dayTotal.toFixed(2);
         document.getElementById('dayTotalCash').textContent = '$' + dayCash.toFixed(2);
         document.getElementById('dayTotalCard').textContent = '$' + dayCard.toFixed(2);
         document.getElementById('dayClosedShifts').textContent = closedCount;
-        
+
     } catch (error) {
         console.error('Error loading day cuts:', error);
     }
