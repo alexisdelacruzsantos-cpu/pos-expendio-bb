@@ -6775,6 +6775,21 @@ body.ubuntu-dragging .ubuntu-tile:focus-visible {
     border-color: var(--primary);
 }
 
+/* Evitar que el overlay de búsqueda tape la tabla en el módulo Productos */
+#productsSection .product-search-results,
+#productsSection #productSearchResults {
+    display: none !important;
+    visibility: hidden !important;
+    position: static !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
 .products-view-toggles {
     display: flex;
     gap: 4px;

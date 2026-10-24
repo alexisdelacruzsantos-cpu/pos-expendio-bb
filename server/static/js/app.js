@@ -2799,6 +2799,13 @@ function renderProductSearchResults() {
     const container = document.getElementById('productSearchResults');
     const input = document.getElementById('productSearch');
     if (!container) return;
+    // En el módulo de Productos no mostrar el overlay para no tapar la tabla
+    const prodSection = document.getElementById('productsSection');
+    if (prodSection && prodSection.classList.contains('active')) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
     const q = (input?.value || '').trim();
     if (!q) {
         container.style.display = 'none';
@@ -2819,6 +2826,10 @@ function renderProductSearchResults() {
 function openProductFromSearch(productId) {
     const container = document.getElementById('productSearchResults');
     if (container) container.style.display = 'none';
+    const prodSection = document.getElementById('productsSection');
+    if (prodSection && prodSection.classList.contains('active')) {
+        return;
+    }
     editProduct(productId);
 }
 
