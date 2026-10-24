@@ -5997,7 +5997,7 @@ function renderSalesHistoryTable(rows = salesHistoryData) {
     if (countEl) countEl.textContent = `${rows.length} venta${rows.length === 1 ? '' : 's'}`;
 
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:26px;color:var(--text-light)">Sin ventas para el día seleccionado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:26px;color:var(--text-light)">Sin ventas para el día seleccionado</td></tr>';
         return;
     }
 
@@ -6009,6 +6009,9 @@ function renderSalesHistoryTable(rows = salesHistoryData) {
             Number(s.id) === Number(salesHistorySelectedId) ? 'selected' : '',
             s.status === 'cancelled' ? 'sh-row-cancelled' : ''
         ].filter(Boolean).join(' ');
+        const noStockBadge = s.sold_without_stock
+            ? '<span class="badge badge-danger" style="font-size:10px;padding:2px 6px">Sin existencia</span>'
+            : '';
         return `
             <tr class="${rowClass}" onclick="selectSaleFromHistory(${s.id})">
                 <td class="sh-folio">#${s.id}</td>
@@ -6016,6 +6019,7 @@ function renderSalesHistoryTable(rows = salesHistoryData) {
                 <td>${escapeHtml(s.cashier_name || '-')}</td>
                 <td class="sh-method">${method}</td>
                 <td class="sh-total">$${parseFloat(s.total || 0).toFixed(2)}</td>
+                <td class="sh-stock-flag">${noStockBadge}</td>
             </tr>
         `;
     }).join('');
@@ -6082,9 +6086,10 @@ function renderSaleTicket(sale) {
         const available = sold - returned;
         const lineTotal = parseFloat(i.total || 0);
         const refundMethod = sale.payment_method === 'cash' ? 'cash' : sale.payment_method === 'card' ? 'card' : 'cash';
+        const noStock = i.sold_without_stock ? '⚠️ Sin existencia' : '';
         return `
             <div class="sh-ticket-item ${available <= 0 ? 'returned' : ''}">
-                <span class="sh-ti-name">${escapeHtml(i.product_name || `Prod #${i.product_id}`)}</span>
+                <span class="sh-ti-name">${escapeHtml(i.product_name || `Prod #${i.product_id}`)}${noStock ? ` <span style="color:#dc2626;font-size:10px">${noStock}</span>` : ''}</span>
                 <span class="sh-ti-qty">${sold > 0 ? 'x' + (+sold) : ''}${returned > 0 ? ` <span style="color:#4338ca">(dev. ${+returned})</span>` : ''}</span>
                 <span class="sh-ti-price">$${lineTotal.toFixed(2)}</span>
             </div>

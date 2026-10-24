@@ -200,6 +200,8 @@ class Database:
                     unit_price REAL,
                     total REAL,
                     discount REAL DEFAULT 0,
+                    returned_quantity REAL DEFAULT 0,
+                    sold_without_stock INTEGER DEFAULT 0,
                     FOREIGN KEY (sale_id) REFERENCES sales(id),
                     FOREIGN KEY (product_id) REFERENCES products(id),
                     FOREIGN KEY (lot_id) REFERENCES lots(id)
@@ -495,6 +497,8 @@ class Database:
             ("ALTER TABLE terminals ADD COLUMN mp_terminal_id TEXT", "terminals", "mp_terminal_id"),
             ("ALTER TABLE terminals ADD COLUMN mp_store_id TEXT", "terminals", "mp_store_id"),
             ("ALTER TABLE terminals ADD COLUMN mp_pos_id TEXT", "terminals", "mp_pos_id"),
+            ("ALTER TABLE sales ADD COLUMN sold_without_stock INTEGER DEFAULT 0", "sales", "sold_without_stock"),
+            ("ALTER TABLE sale_items ADD COLUMN sold_without_stock INTEGER DEFAULT 0", "sale_items", "sold_without_stock"),
         ]
         for sql, table, column in migrations:
             try:

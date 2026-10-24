@@ -31,7 +31,7 @@ def get_sales():
         status = request.args.get('status', '').strip()
 
         query = '''
-            SELECT s.*, u.full_name as cashier_full_name,
+            SELECT s.*, s.sold_without_stock as sold_without_stock, u.full_name as cashier_full_name,
                    (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as item_count,
                    (SELECT COALESCE(SUM(ret.amount), 0) FROM returns ret WHERE ret.sale_id = s.id) as returned_amount
             FROM sales s
@@ -84,7 +84,7 @@ def get_sale(sale_id):
     try:
         db = Database(get_db_path())
         sale = db.fetch_one('''
-            SELECT s.*, u.full_name as cashier_full_name
+            SELECT s.*, s.sold_without_stock as sold_without_stock, u.full_name as cashier_full_name
             FROM sales s
             LEFT JOIN users u ON s.cashier_id = u.id
             WHERE s.id = ?
@@ -121,7 +121,7 @@ def create_sale():
         amount_tendered = data.get('amount_tendered', 0)
         cashier_id = get_jwt_identity()
         force_no_stock = data.get('force_no_stock', False)
-        if force_no_stock and not has_permission('products', 'edit') and not is_admin():
+        if force_no_stock and not has_permission('sales', 'create') and not is_admin():
             return jsonify({'error': 'No tienes permiso para operar sin existencias'}), 403
 
         if not items:
@@ -363,10 +363,10 @@ def create_sale():
                     }), 400
 
             cursor = db.execute('''
-                INSERT INTO sales (sale_date, subtotal, total, payment_method, cashier_id, cashier_name, amount_tendered, change_given, customer_name, notes, cash_register_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO sales (sale_date, subtotal, total, payment_method, cashier_id, cashier_name, amount_tendered, change_given, customer_name, notes, cash_register_id, sold_without_stock)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (_dt.now().strftime('%Y-%m-%d %H:%M:%S'), subtotal, total, payment_method, cashier_id, cashier_name, amount_tendered, change_given,
-                  data.get('customer_name') or None, data.get('notes') or None, cash_register_id))
+                  data.get('customer_name') or None, data.get('notes') or None, cash_register_id, force_no_stock))
 
             sale_id = cursor.lastrowid
 
@@ -412,9 +412,9 @@ def create_sale():
                 item_total = quantity * unit_price - item_discount
 
                 db.execute('''
-                    INSERT INTO sale_items (sale_id, product_id, lot_id, quantity, unit_price, total, discount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (sale_id, product_id, lot_id, quantity, unit_price, item_total, item_discount))
+                    INSERT INTO sale_items (sale_id, product_id, lot_id, quantity, unit_price, total, discount, sold_without_stock)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (sale_id, product_id, lot_id, quantity, unit_price, item_total, item_discount, force_no_stock))
 
                 log_movement(db, product_id=product_id, lot_id=lot_id, movement_type='sale',
                              quantity=-quantity, reference_id=sale_id,
