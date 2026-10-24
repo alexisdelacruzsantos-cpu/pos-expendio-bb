@@ -5022,16 +5022,16 @@ function renderInventoryMovements(movements) {
 
 function showProductHistory(productId, productName) {
     showModal('📜 Historial - ' + productName, `
-        <div style="max-height:60vh;overflow-y:auto;">
-            <table class="data-table" style="font-size:12px;">
+        <div style="max-height:70vh;overflow:auto;">
+            <table class="data-table" style="font-size:13px;min-width:820px;">
                 <thead>
                     <tr>
                         <th>Fecha / Hora</th>
                         <th>Lote</th>
                         <th>Tipo</th>
-                        <th>Cantidad</th>
-                        <th>Antes</th>
-                        <th>Después</th>
+                        <th style="text-align:right">Cantidad</th>
+                        <th style="text-align:right">Antes</th>
+                        <th style="text-align:right">Después</th>
                         <th>Nota / Usuario</th>
                     </tr>
                 </thead>
@@ -5086,12 +5086,12 @@ function showProductHistory(productId, productName) {
             return `
                 <tr>
                     <td style="white-space:nowrap">${dateStr}</td>
-                    <td><small>${safeLot}</small></td>
+                    <td>${safeLot}</td>
                     <td><span style="color:${meta.color};font-weight:600">${meta.label}</span></td>
                     <td style="text-align:right;white-space:nowrap">${qtyCell}</td>
                     <td style="text-align:right;color:#9ca3af">${beforeQty}</td>
                     <td style="text-align:right;font-weight:600">${afterCell}</td>
-                    <td><div style="font-size:11px">${safeActor} ${actorRole}</div>${notesHtml}</td>
+                    <td><div>${safeActor} ${actorRole}</div>${notesHtml}</td>
                 </tr>
             `;
         }).join('');
