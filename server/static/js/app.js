@@ -7595,7 +7595,7 @@ async function viewCashDetail(shiftId) {
                         <tbody>
                             ${sales.map(s => `<tr>
                                 <td>${s.id}</td>
-                                <td>${new Date(s.sale_date).toLocaleTimeString('es-MX')}</td>
+                                <td>${formatShortTime(s.sale_date)}</td>
                                 <td>$${parseFloat(s.total).toFixed(2)}</td>
                                 <td>${s.payment_method === 'cash' ? '💵' : s.payment_method === 'card' ? '💳' : '🔀'}</td>
                             </tr>`).join('')}
@@ -7668,7 +7668,7 @@ async function loadCashData() {
 
         tbody.innerHTML = (sales.sales || []).map(s => `
             <tr>
-                <td>${new Date(s.sale_date).toLocaleTimeString('es-MX')}</td>
+                <td>${formatShortTime(s.sale_date)}</td>
                 <td>$${parseFloat(s.total).toFixed(2)}</td>
                 <td>${s.payment_method === 'cash' ? '💵 Efectivo' : '💳 Tarjeta'}</td>
                 <td>${escapeHtml(s.cashier_name || '-')}</td>
