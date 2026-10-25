@@ -2968,7 +2968,7 @@ function renderProductRow(p) {
             <td class="num"><strong>$${parseFloat(p.price).toFixed(2)}</strong></td>
             <td class="num"><span class="gain ${gainClass}" title="Margen: ${p.margen.toFixed(1)}%">${gainLabel}</span></td>
             <td class="num">${lotsLabel}</td>
-            <td class="num"><span class="badge ${stockClass}">${stockLabel}</span></td>
+            <td class="num" style="text-align:center"><span class="badge ${stockClass}" style="font-size:18px;font-weight:800;min-width:70px;padding:6px 12px">${stockLabel}</span></td>
             <td>
                 <div class="products-actions">
                     <button class="action-btn-icon" title="Ver lotes" onclick="showProductLots(${p.id}, '${safeName}')">
