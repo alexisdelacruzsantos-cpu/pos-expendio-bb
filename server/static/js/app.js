@@ -3741,16 +3741,23 @@ function onAdjustmentNewQuantityInput() {
 }
 
 function selectAdjustmentLot(lotId) {
-    adjustmentsLotId = lotId;
-    document.querySelectorAll('.adjustments-lot-row').forEach(row => row.classList.toggle('selected', Number(row.dataset.lotId) === lotId));
+    adjustmentsLotId = (lotId === null || lotId === undefined || lotId === '') ? null : lotId;
+    document.querySelectorAll('.adjustments-lot-row').forEach(row => row.classList.toggle('selected', row.dataset.lotId && Number(row.dataset.lotId) === Number(adjustmentsLotId)));
     if (adjustmentsProduct) {
-        const lot = (adjustmentsProduct.lots || []).find(l => l.id === lotId);
         const priceEl = document.getElementById('adjustmentsPrice');
-        if (lot && priceEl) {
-            const lp = parseFloat(lot.sale_price != null ? lot.sale_price : lot.price);
-            if (!isNaN(lp) && lp > 0) {
-                priceEl.value = lp;
-                adjustmentsOriginal.price = lp;
+        if (adjustmentsLotId === null) {
+            if (priceEl) {
+                priceEl.value = Number(adjustmentsProduct.price ?? adjustmentsOriginal.price ?? 0);
+                adjustmentsOriginal.price = Number(adjustmentsProduct.price ?? adjustmentsOriginal.price ?? 0);
+            }
+        } else {
+            const lot = (adjustmentsProduct.lots || []).find(l => l.id === Number(adjustmentsLotId));
+            if (lot && priceEl) {
+                const lp = parseFloat(lot.sale_price != null ? lot.sale_price : lot.price);
+                if (!isNaN(lp) && lp >= 0) {
+                    priceEl.value = lp;
+                    adjustmentsOriginal.price = lp;
+                }
             }
         }
     }
