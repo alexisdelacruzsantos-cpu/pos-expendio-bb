@@ -3647,7 +3647,7 @@ let adjustmentsOriginal = { cost: 0, price: 0 };
 function getAdjustmentTarget() {
     if (adjustmentsLotId && adjustmentsProduct) {
         const lot = (adjustmentsProduct.lots || []).find(l => l.id === adjustmentsLotId);
-        return lot ? { type: 'lot', lot, current: Number(lot.current_quantity || 0), label: lot.batch_number || `Lote #${lot.id}` } : null;
+        return lot ? { type: 'lot', lot, current: Number(lot.current_quantity || 0), label: (lot.batch_number && lot.batch_number.trim()) ? lot.batch_number.trim() : 'LOTE OFERTA' } : null;
     }
     return { type: 'product', current: Number(adjustmentsProduct?.stock || 0), label: 'stock general' };
 }
@@ -3743,6 +3743,17 @@ function onAdjustmentNewQuantityInput() {
 function selectAdjustmentLot(lotId) {
     adjustmentsLotId = lotId;
     document.querySelectorAll('.adjustments-lot-row').forEach(row => row.classList.toggle('selected', Number(row.dataset.lotId) === lotId));
+    if (adjustmentsProduct) {
+        const lot = (adjustmentsProduct.lots || []).find(l => l.id === lotId);
+        const priceEl = document.getElementById('adjustmentsPrice');
+        if (lot && priceEl) {
+            const lp = parseFloat(lot.sale_price != null ? lot.sale_price : lot.price);
+            if (!isNaN(lp) && lp > 0) {
+                priceEl.value = lp;
+                adjustmentsOriginal.price = lp;
+            }
+        }
+    }
     refreshAdjustmentsForm();
 }
 
@@ -3811,10 +3822,10 @@ function showAdjustmentProduct(product) {
                 let badge = '';
                 if (l.is_expired) badge = '<span class="badge badge-danger">Vencido</span>';
                 else if (l.days_left != null && l.days_left <= 7) badge = `<span class="badge badge-warning">${l.days_left}d</span>`;
+                const lotName = (l.batch_number && l.batch_number.trim()) ? l.batch_number.trim() : 'LOTE OFERTA';
                 return `<div class="adjustments-lot-row" data-lot-id="${l.id}" onclick="selectAdjustmentLot(${l.id})">
                     <div>
-                        <strong>${escapeHtml(l.batch_number || 's/lote')}</strong>
-                        <div class="lot-expiry">${l.expiry_date ? 'Caduca: ' + new Date(l.expiry_date).toLocaleDateString('es-MX') + (l.days_left != null ? ' (' + l.days_left + 'd)' : '') : 'Sin fecha'}</div>
+                        <strong>${escapeHtml(lotName)}</strong>
                     </div>
                     <div class="text-right">
                         <strong>${qtyStr}</strong> ${badge}
